@@ -1,12 +1,7 @@
-use core::{RayCaster, Color, FresnelIndex, RayIntersection, IlluminationCaster};
+use core::{Color, FresnelIndex, RayIntersection};
 
 use defs::FloatType;
 use tools::CompareWithTolerance;
-
-pub trait ColorCalculator: Send + Sync {
-    fn get_color(&self, itersection: &RayIntersection, ray_caster: &RayCaster, illumination_caster: &IlluminationCaster) -> Option<Color>;
-}
-
 
 #[derive(Copy, Clone)]
 pub struct FresnelData {

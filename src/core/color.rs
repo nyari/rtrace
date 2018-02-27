@@ -5,6 +5,14 @@ use defs::FloatType;
 use tools::CompareWithTolerance;
 
 #[derive(Debug, Clone, Copy)]
+pub enum ColorComponent {
+    Red,
+    Green,
+    Blue,
+}
+
+
+#[derive(Debug, Clone, Copy)]
 pub struct Color {
     r: FloatType,
     g: FloatType,
@@ -20,6 +28,14 @@ impl Color {
 
     pub fn get(&self) -> (FloatType, FloatType, FloatType) {
         (self.r, self.g, self.b)
+    }
+
+    pub fn get_component(&self, component: ColorComponent) -> FloatType {
+        match component {
+            ColorComponent::Red => self.r,
+            ColorComponent::Green => self.g,
+            ColorComponent::Blue => self.b,
+        }
     }
 
     pub fn equal_eps(&self, other: &Color) -> bool {
