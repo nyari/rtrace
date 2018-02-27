@@ -1,10 +1,10 @@
-use core::{Color, FresnelIndex, RayIntersection};
+use core::{Color, ColorComponent, FresnelIndex, RayIntersection, LightIntersection};
 
 use defs::FloatType;
 use tools::CompareWithTolerance;
 
 #[derive(Copy, Clone)]
-pub struct FresnelData {
+struct FresnelData {
     pub n: FresnelIndex,
     pub n_inverse: FresnelIndex,
     pub n_avg: FloatType,
@@ -160,10 +160,6 @@ impl Material {
         self.refractive
     }
 
-    pub fn get_fresnel_data(&self) -> Option<&FresnelData> {
-        self.fresnel.as_ref()
-    }
-
     pub fn get_transparency_to_light(&self) -> Option<Color> {
         if self.is_transparent() {
             match self.diffuse {
@@ -173,5 +169,62 @@ impl Material {
         } else {
             None
         }
+    }
+
+    pub fn get_average_refractive_index(&self) -> Option<FloatType> {
+        self.fresnel.and_then(|fresnel_data| {
+            Some(fresnel_data.n_avg)
+        })
+    }
+
+    pub fn get_refractive_index_for_component(&self, component: ColorComponent) -> Option<FloatType> {
+        self.fresnel.and_then(|fresnel_data| {
+            Some(fresnel_data.n.get_component(component))
+        })
+    }
+
+    fn get_fresnel_data(&self) -> Option<&FresnelData> {
+        self.fresnel.as_ref()
+    }
+
+    pub fn get_diffuse_illumination(ray_intersection: &RayIntersection, light_intersection: &LightIntersection) -> Option<Color> {
+        let material = ray_intersection.get_material();
+
+        material.get_diffuse_color().and_then(|color| {
+            let surface_normal = ray_intersection.get_normal_vector();
+            let light_direction = light_intersection.get_light_direction();
+            let cosln = light_direction.dot(surface_normal).max(0.0);
+            let illumination = light_intersection.get_illumination();
+            Some ((*color * *illumination).mul_scalar(&cosln))
+        })
+    }
+
+    pub fn get_specular_illumination(ray_intersection: &RayIntersection, light_intersection: &LightIntersection) -> Option<Color> {
+        let material = ray_intersection.get_material();
+
+        material.get_specular_color().and_then(|color_shiny| {
+            let illumination = light_intersection.get_illumination();
+            let view_direction = ray_intersection.get_view_direction();
+            let surface_normal = ray_intersection.get_normal_vector();
+            let (color, shininess) = *color_shiny;
+            let light_direction = light_intersection.get_light_direction();
+            let half_direction = (view_direction + light_direction).normalize();
+            let coshn = half_direction.dot(surface_normal).max(0.0).powf(shininess);
+            Some((color * *illumination).mul_scalar(&coshn))
+        })
+    }
+
+    pub fn get_fresnel_reflection(ray_intersection: &RayIntersection) -> Option<Color> {
+        let material = ray_intersection.get_material();
+        material.get_fresnel_data().and_then(|fresnel_data| {
+            fresnel_data.get_fresnel_reflect(ray_intersection)
+        })
+    }
+
+    pub fn get_fresnel_refraction(ray_intersection: &RayIntersection) -> Option<Color> {
+        let material = ray_intersection.get_material();
+        material.get_fresnel_data().and_then(|fresnel_data| {
+            fresnel_data.get_fresnel_refract(ray_intersection)
+        })
     }
 }

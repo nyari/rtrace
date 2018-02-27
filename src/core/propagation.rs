@@ -64,8 +64,8 @@ impl<'intersection> LightPropagator<'intersection> {
 
     pub fn get_refracted_ray(&self) -> Result<Ray, LightPropagatorError> {
         let material = self.intersection.get_material();
-        if let Some(fresnel_data) = material.get_fresnel_data() {
-            self.get_refracted_ray_custom_index(fresnel_data.n_avg)
+        if let Some(refractive_index) = material.get_average_refractive_index() {
+            self.get_refracted_ray_custom_index(refractive_index)
         } else {
             Err(LightPropagatorError::NotRefractiveMaterial)
         }
@@ -73,8 +73,8 @@ impl<'intersection> LightPropagator<'intersection> {
 
     pub fn get_refracted_component_ray(&self, component: ColorComponent) -> Result<Ray, LightPropagatorError> {
         let material = self.intersection.get_material();
-        if let Some(fresnel_data) = material.get_fresnel_data() {
-            self.get_refracted_ray_custom_index(fresnel_data.n.get_component(component))
+        if let Some(refractive_index) = material.get_refractive_index_for_component(component) {
+            self.get_refracted_ray_custom_index(refractive_index)
         } else {
             Err(LightPropagatorError::NotRefractiveMaterial)
         }
