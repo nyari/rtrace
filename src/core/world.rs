@@ -4,7 +4,7 @@ use tools::{Vector3Extensions, CompareWithTolerance};
 
 pub trait RayCaster {
     fn cast_ray(&self, ray: &Ray) -> Option<Color>;
-    fn cast_light_ray(&self, ray: &Ray, intersection: &RayIntersection) -> Option<Color>;
+    fn cast_colored_light_ray(&self, ray: &Ray, intersection: &RayIntersection) -> Option<Color>;
 }
 
 pub trait IlluminationCaster {
@@ -49,7 +49,7 @@ impl<IntersectorType: Intersector + Send + Sync,
         }
     }
 
-    fn cast_light_ray(&self, ray: &Ray, intersection: &RayIntersection) -> Option<Color> {
+    fn cast_colored_light_ray(&self, ray: &Ray, intersection: &RayIntersection) -> Option<Color> {
         let origin_to_intersection_vector = intersection.get_intersection_point() - ray.get_origin();
         
         let max_length = origin_to_intersection_vector.length();
