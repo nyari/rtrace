@@ -30,6 +30,7 @@ impl LightIntersection {
 pub trait LightSource: Send + Sync {
     fn get_ray_to_intersection(&self, intersection: &RayIntersection) -> Option<Ray>;
     fn get_illumination_at(&self, intersection: &RayIntersection) -> Option<LightIntersection>;
+    fn get_intersection(&self, ray: &Ray) -> Option<LightIntersection>;
 }
 
 pub trait Illuminator: Send + Sync {

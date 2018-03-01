@@ -56,6 +56,10 @@ impl LightSource for DotLightSource {
 
         Some(LightIntersection::new(result_color, intersection_to_light_vector))
     }
+
+    fn get_intersection(&self, _ray: &Ray) -> Option<LightIntersection> {
+        None
+    }
 }
 
 
@@ -86,5 +90,9 @@ impl LightSource for SpotLightSource {
 
     fn get_illumination_at(&self, intersection: &RayIntersection) -> Option<LightIntersection> {
         self.dot_light.get_illumination_at(intersection)
+    }
+
+    fn get_intersection(&self, _ray: &Ray) -> Option<LightIntersection> {
+        None
     }
 }
