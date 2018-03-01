@@ -4,24 +4,24 @@ use core::{Ray, RayError, RayIntersection, ColorComponent};
 use tools::{CompareWithTolerance};
 
 #[derive(Debug)]
-pub enum LightPropagatorError {
+pub enum RayPropagatorError {
     RayRelated(RayError),
     NoRefraction,
     NotRefractiveMaterial
 }
 
-pub struct LightPropagator<'intersection> {
+pub struct RayPropagator<'intersection> {
     intersection: &'intersection RayIntersection
 }
 
-impl<'intersection> LightPropagator<'intersection> {
+impl<'intersection> RayPropagator<'intersection> {
     pub fn new(intersection: &'intersection RayIntersection) -> Self {
         Self {
             intersection: intersection
         }
     }
 
-    pub fn get_mirrored_ray(&self) -> Result<Ray, LightPropagatorError> {
+    pub fn get_mirrored_ray(&self) -> Result<Ray, RayPropagatorError> {
         let view = self.intersection.get_view_direction();
         let normal = self.intersection.get_normal_vector();
 
@@ -29,13 +29,13 @@ impl<'intersection> LightPropagator<'intersection> {
 
         Ray::continue_ray_from_intersection(self.intersection, mirror_direction).map_err(|ray_error| {
             match ray_error {
-                RayError::DepthLimitReached => LightPropagatorError::RayRelated(ray_error),
-                _ => panic!("LightPropagator encountered unhandleable RayError")
+                RayError::DepthLimitReached => RayPropagatorError::RayRelated(ray_error),
+                _ => panic!("RayPropagator encountered unhandleable RayError")
             }
         })
     }
 
-    pub fn get_refracted_ray_custom_index(&self, refractive_index: FloatType) -> Result<Ray, LightPropagatorError> {
+    pub fn get_refracted_ray_custom_index(&self, refractive_index: FloatType) -> Result<Ray, RayPropagatorError> {
         let view = self.intersection.get_view_direction();
         let normal = self.intersection.get_normal_vector();
 
@@ -53,30 +53,30 @@ impl<'intersection> LightPropagator<'intersection> {
 
             Ray::continue_ray_from_intersection(self.intersection, refraction_direction).map_err(|ray_error| {
                 match ray_error {
-                    RayError::DepthLimitReached => LightPropagatorError::RayRelated(ray_error),
-                    _ => panic!("LightPropagator encountered unhandleable RayError")
+                    RayError::DepthLimitReached => RayPropagatorError::RayRelated(ray_error),
+                    _ => panic!("RayPropagator encountered unhandleable RayError")
                 }
             })
         } else {
-            Err(LightPropagatorError::NoRefraction)
+            Err(RayPropagatorError::NoRefraction)
         }
     }
 
-    pub fn get_refracted_ray(&self) -> Result<Ray, LightPropagatorError> {
+    pub fn get_refracted_ray(&self) -> Result<Ray, RayPropagatorError> {
         let material = self.intersection.get_material();
         if let Some(refractive_index) = material.get_average_refractive_index() {
             self.get_refracted_ray_custom_index(refractive_index)
         } else {
-            Err(LightPropagatorError::NotRefractiveMaterial)
+            Err(RayPropagatorError::NotRefractiveMaterial)
         }
     }
 
-    pub fn get_refracted_component_ray(&self, component: ColorComponent) -> Result<Ray, LightPropagatorError> {
+    pub fn get_refracted_component_ray(&self, component: ColorComponent) -> Result<Ray, RayPropagatorError> {
         let material = self.intersection.get_material();
         if let Some(refractive_index) = material.get_refractive_index_for_component(component) {
             self.get_refracted_ray_custom_index(refractive_index)
         } else {
-            Err(LightPropagatorError::NotRefractiveMaterial)
+            Err(RayPropagatorError::NotRefractiveMaterial)
         }
     }
 }

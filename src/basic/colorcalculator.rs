@@ -1,5 +1,5 @@
 use core::{RayCaster, RayIntersection, Color, ColorCalculator, Material,
-          IlluminationCaster, LightIntersection, LightPropagator, LightPropagatorError};
+          IlluminationCaster, LightIntersection, RayPropagator, RayPropagatorError};
 
 pub struct SimpleColorCalculator {
 
@@ -27,7 +27,7 @@ impl SimpleColorCalculator {
     fn get_reflected_color(&self, intersection: &RayIntersection, ray_caster: &RayCaster) -> Color {
         let material = intersection.get_material();
         if material.is_reflective() {
-            let propagator = LightPropagator::new(intersection);
+            let propagator = RayPropagator::new(intersection);
             match propagator.get_mirrored_ray() {
                 Ok(mirror_ray) => {
                     if let Some(color) = ray_caster.cast_ray(&mirror_ray) {
@@ -40,8 +40,8 @@ impl SimpleColorCalculator {
                         Color::zero()
                     }
                 },
-                Err(LightPropagatorError::RayRelated(_)) => Color::zero(),
-                Err(_) => panic!("Unhandled LightPropagator error!")
+                Err(RayPropagatorError::RayRelated(_)) => Color::zero(),
+                Err(_) => panic!("Unhandled RayPropagator error!")
             }
         } else {
             Color::zero()
@@ -51,7 +51,7 @@ impl SimpleColorCalculator {
     fn get_refracted_color(&self, intersection: &RayIntersection, ray_caster: &RayCaster) -> Color {
         let material = intersection.get_material();
         if material.is_refractive() {
-            let propagator = LightPropagator::new(intersection);
+            let propagator = RayPropagator::new(intersection);
             match propagator.get_refracted_ray() {
                 Ok(refract_ray) => {
                     if let Some(color) = ray_caster.cast_ray(&refract_ray) {
@@ -64,8 +64,8 @@ impl SimpleColorCalculator {
                         Color::zero()
                     }
                 }
-                Err(LightPropagatorError::RayRelated(_)) => Color::zero(),
-                Err(_) => panic!("Unhandled LightPropagator error!")
+                Err(RayPropagatorError::RayRelated(_)) => Color::zero(),
+                Err(_) => panic!("Unhandled RayPropagator error!")
             }
         } else {
             Color::zero()
