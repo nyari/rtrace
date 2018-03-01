@@ -26,7 +26,7 @@ impl RayIntersection {
         if distance_to_intersection.greater_eq_eps(&MIMIMUM_INTERSECTION_DISTANCE) {
             Ok (Self {  normal:  Unit::new_normalize(normal), 
                         point: point, 
-                        ray: *ray,
+                        ray: ray.clone(),
                         material_at_intersection: material,
                         distance_to_intersection: distance_to_intersection,
                         was_inside: was_inside
@@ -48,7 +48,7 @@ impl RayIntersection {
         self.distance_to_intersection
     }
 
-    pub fn get_itersector_ray(&self) -> &Ray {
+    pub fn get_intersector_ray(&self) -> &Ray {
         &self.ray
     }
 
@@ -58,6 +58,10 @@ impl RayIntersection {
 
     pub fn get_material(&self) -> &Material {
         &self.material_at_intersection
+    }
+
+    pub fn get_ray_medium(&self) -> Option<&Material> {
+        self.ray.get_medium()
     }
 
     pub fn was_inside(&self) -> bool {

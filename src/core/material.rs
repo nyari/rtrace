@@ -3,7 +3,7 @@ use core::{Color, ColorComponent, FresnelIndex, RayIntersection, LightIntersecti
 use defs::FloatType;
 use tools::CompareWithTolerance;
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 struct FresnelData {
     pub n: FresnelIndex,
     pub n_inverse: FresnelIndex,
@@ -66,7 +66,7 @@ impl FresnelData {
 }
 
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Material {
     ambient: Option<Color>,
     diffuse: Option<Color>,

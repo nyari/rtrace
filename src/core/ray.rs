@@ -1,5 +1,6 @@
 use defs::{Vector3, Point3, FloatType, Matrix4};
-use core::RayIntersection;
+use std::collections::{VecDeque};
+use core::{RayIntersection, Material};
 use tools::Vector3Extensions;
 use na::{Unit};
 
@@ -14,7 +15,6 @@ pub enum RayError {
 #[derive(Clone, Copy, Debug)]
 struct RayState {
     distance_to_origin : FloatType,
-    inside_counter : i32,
     depth_counter : i32,
     depth_limit: Option<u32>,
 }
@@ -46,45 +46,25 @@ impl RayState {
         self.distance_to_origin
     }
 
-    pub fn get_inside_counter(&self) -> i32 {
-        self.inside_counter
-    }
-
-    pub fn is_ray_inside_object(&self) -> bool {
-        self.inside_counter > 0
-    }
-
     pub fn get_depth_counter(&self) -> i32 {
         self.depth_counter
     }
-
-    pub fn enter_object(&mut self) {
-        self.inside_counter += 1;
-    }
-
-    pub fn leave_object(&mut self) {
-        if self.inside_counter > 0 {
-            self.inside_counter -= 1;
-        } else {
-            panic!("Ray left object more times than entered");
-        }
-    }
 }
 
-
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Ray {
     direction : Unit<Vector3>,
     origin : Point3,
-    state : RayState
+    state : RayState,
+    mediums : VecDeque<Material>, 
 }
 
 impl Ray {
     pub fn new(origin: Point3, dir: Vector3) -> Self {
         Self    { direction: Unit::new_normalize(dir),
                   origin: origin,
+                  mediums: VecDeque::new(),
                   state: RayState { distance_to_origin: 0.0,
-                                    inside_counter: 0,
                                     depth_counter: 0,
                                     depth_limit: None }
         }
@@ -93,8 +73,8 @@ impl Ray {
     pub fn new_depth_limited(origin: Point3, dir: Vector3, depth_limit: u32) -> Self {
         Self    { direction: Unit::new_normalize(dir),
                   origin: origin,
+                  mediums: VecDeque::with_capacity((depth_limit + 1) as usize),
                   state: RayState { distance_to_origin: 0.0,
-                                    inside_counter: 0,
                                     depth_counter: 0,
                                     depth_limit: Some(depth_limit) }
         }
@@ -104,12 +84,32 @@ impl Ray {
         Self::new_depth_limited(origin, dir, 1)
     }
 
+    pub fn continue_ray_from_intersection_into_medium(intersection: &RayIntersection, direction: Vector3) -> Result<Self, RayError> {
+        match RayState::get_continuation(intersection.get_intersector_ray().get_state(), intersection.get_distance_to_intersection()) {
+            Ok (continued_state) => {
+                let mut cloned_mediums = intersection.get_intersector_ray().mediums.clone();
+                if intersection.was_inside() {
+                    cloned_mediums.pop_back();
+                } else {
+                    cloned_mediums.push_back(*intersection.get_material())
+                }
+
+                Ok (Self {  direction: Unit::new_normalize(direction),
+                            origin: *intersection.get_intersection_point(),
+                            mediums: cloned_mediums,
+                            state: continued_state})
+            },
+            Err(e) => Err(e)
+        }
+    }
+
     pub fn continue_ray_from_intersection(intersection: &RayIntersection, direction: Vector3) -> Result<Self, RayError> {
-        match RayState::get_continuation(intersection.get_itersector_ray().get_state(), intersection.get_distance_to_intersection()) {
+        match RayState::get_continuation(intersection.get_intersector_ray().get_state(), intersection.get_distance_to_intersection()) {
             Ok (continued_state) => {
                 Ok (Self {  direction: Unit::new_normalize(direction),
                             origin: *intersection.get_intersection_point(),
-                            state: continued_state})
+                            state: continued_state,
+                            ..intersection.get_intersector_ray().clone()})
             },
             Err(e) => Err(e)
         }
@@ -122,7 +122,8 @@ impl Ray {
             Ok (continued_state) => {
                 Ok (Self {  direction: Unit::new_normalize(direction),
                             origin: origin,
-                            state: continued_state})
+                            state: continued_state,
+                            ..previous_ray.clone()})
             },
             Err(e) => Err(e)
         }
@@ -134,7 +135,7 @@ impl Ray {
 
     pub fn new_reversed_ray(ray: &Ray) -> Self {
         Self    { direction: (-ray.direction),
-                  ..*ray }
+                  ..ray.clone() }
     }
 
     pub fn get_transformed(&self, transformation_matrix: &Matrix4) -> Self {
@@ -143,7 +144,7 @@ impl Ray {
 
         Self    { origin: Point3::from_homogeneous(transformation_matrix * origin).expect("Unhomogeneous transformed point"),
                   direction: Unit::new_normalize(Vector3::from_homogeneous(transformation_matrix * direction).expect("Unhomogeneous transformed vector")),
-                  ..*self
+                  ..self.clone()
         }
     }
 
@@ -159,24 +160,12 @@ impl Ray {
         self.state.get_distance_to_origin()
     }
 
-    pub fn get_inside_counter(&self) -> i32 {
-        self.state.get_inside_counter()
-    }
-
-    pub fn is_ray_inside_object(&self) -> bool {
-        self.state.is_ray_inside_object()
-    }
-
     pub fn get_depth_counter(&self) -> i32 {
         self.state.get_depth_counter()
     }
 
-    pub fn enter_object(&mut self) {
-        self.state.enter_object()
-    }
-
-    pub fn leave_object(&mut self) {
-        self.state.leave_object()
+    pub fn get_medium(&self) -> Option<&Material> {
+        self.mediums.back()
     }
 }
 
