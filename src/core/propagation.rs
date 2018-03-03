@@ -1,7 +1,10 @@
-use defs::{FloatType};
+use defs::{FloatType, Vector3};
 
 use core::{Ray, RayError, RayIntersection, ColorComponent};
 use tools::{CompareWithTolerance};
+
+use na;
+use na::{Rotation3, Unit};
 
 #[derive(Debug)]
 pub enum RayPropagatorError {
@@ -101,4 +104,40 @@ impl<'intersection> RayPropagator<'intersection> {
             Err(RayPropagatorError::NotRefractiveMaterial)
         }
     }
+
+    pub fn get_diffuse_direction_vector(&self, angle_to_normal: FloatType, angle_to_view_direction: FloatType) -> Vector3 {
+        let normal = self.intersection.get_normal_vector();
+        let view = self.intersection.get_view_direction();
+        let angle_to_rotate_view = na::angle(normal, &view) - angle_to_normal;
+        let view_axis = normal.cross(&view);
+
+        let rotate_to_normal = Rotation3::from_axis_angle(&Unit::new_normalize(view_axis), angle_to_rotate_view);
+        let rotate_around_normal = Rotation3::from_axis_angle(&Unit::new_unchecked(*normal), angle_to_view_direction);
+
+        rotate_around_normal * rotate_to_normal * view
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use defs::{Point3};
+    use core::{Material};
+    use std::f64::consts::{PI};
+
+    #[test]
+    fn diffuse_direction_vector_1() {
+        let ray = Ray::new(Point3::new(1.0, 0.0, 1.0), Vector3::new(-1.0, 0.0, -1.0));
+        let intersection = RayIntersection::new(Vector3::new(0.0, 0.0, 1.0), Point3::new(0.0, 0.0, 0.0),
+                                                &ray, Material::new_useless(), false).unwrap();
+
+        let propagator = RayPropagator::new(&intersection);
+
+        assert_relative_eq!(propagator.get_diffuse_direction_vector(PI/4.0, 0.0),       Unit::new_normalize(Vector3::new(1.0, 0.0, 1.0)).unwrap());
+        assert_relative_eq!(propagator.get_diffuse_direction_vector(PI/8.0, 0.0),       Unit::new_normalize(Vector3::new((3.0*PI/8.0).tan(), 0.0, 1.0)).unwrap());
+        assert_relative_eq!(propagator.get_diffuse_direction_vector(PI/8.0, PI/2.0),    Unit::new_normalize(Vector3::new(0.0, (3.0*PI/8.0).tan(), 1.0)).unwrap());
+        assert_relative_eq!(propagator.get_diffuse_direction_vector(PI/8.0, PI),        Unit::new_normalize(Vector3::new(-((3.0*PI/8.0).tan()), 0.0, 1.0)).unwrap());
+    }
+
 }
