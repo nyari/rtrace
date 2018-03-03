@@ -42,6 +42,13 @@ impl RayState {
         }
     }
 
+    pub fn get_maximum_depth_limited(&self, maximum_depth_limit: u32) -> Self {
+        Self {
+            depth_limit: Some(maximum_depth_limit.min(if let Some(depth_limit) = self.depth_limit {depth_limit} else {maximum_depth_limit})),
+            ..*self
+        }
+    }
+
     pub fn get_distance_to_origin(&self) -> FloatType {
         self.distance_to_origin
     }
@@ -82,6 +89,13 @@ impl Ray {
 
     pub fn new_single_shot(origin: Point3, dir: Vector3) -> Self {
         Self::new_depth_limited(origin, dir, 1)
+    }
+
+    pub fn get_maximum_depth_limited(&self, maximum_depth_limit: u32) -> Self {
+        Self {
+            state: self.state.get_maximum_depth_limited(maximum_depth_limit),
+            ..self.clone()
+        }
     }
 
     pub fn continue_ray_from_intersection_into_medium(intersection: &RayIntersection, direction: Vector3) -> Result<Self, RayError> {
