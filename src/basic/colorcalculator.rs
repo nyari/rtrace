@@ -1,8 +1,11 @@
 use core::{RayCaster, RayIntersection, Color, ColorCalculator, Material,
           IlluminationCaster, LightIntersection, RayPropagator, RayPropagatorError};
 
-pub struct SimpleColorCalculator {
+use defs::{FloatType};
+use std;
 
+pub struct SimpleColorCalculator {
+    
 }
 
 impl SimpleColorCalculator {
@@ -83,5 +86,69 @@ impl ColorCalculator for SimpleColorCalculator {
                         self.get_refracted_color(intersection, ray_caster);
 
         Some (result)
+    }
+}
+
+
+pub struct GlobalIlluminationColorCalculator {
+    simple_calculator: SimpleColorCalculator,
+    normalwise_samples: u32,
+    normalwise_max_angle: FloatType,
+    rotational_samples: u32,
+}
+
+impl GlobalIlluminationColorCalculator {
+    pub fn new(calculator: SimpleColorCalculator, normalwise_samples: u32, normalwise_max_angle: FloatType, rotational_samples: u32) -> Self {
+        Self {
+            simple_calculator: calculator,
+            normalwise_samples: normalwise_samples,
+            normalwise_max_angle: normalwise_max_angle,
+            rotational_samples: rotational_samples,
+        }
+    }
+
+    pub fn calculate_gi(&self, intersection: &RayIntersection, ray_caster: &RayCaster) -> Option<Color> {
+        let mut accumulator = Color::zero();
+        let propagator = RayPropagator::new(intersection);
+
+        if let Ok(ray) = propagator.get_diffuse_direction_ray(0.0, 0.0) {
+            if let Some(upward_color) = ray_caster.cast_ray(&ray) {
+                accumulator += upward_color;
+            }
+        } else {
+            return None
+        }
+
+        for normalwise_counter in 1..self.normalwise_samples {
+            for rotational_counter in 0..self.rotational_samples {
+                let normalwise_angle = (self.normalwise_samples as FloatType).recip() * (normalwise_counter as FloatType) * self.normalwise_max_angle;
+                let rotational_angle = (self.rotational_samples as FloatType).recip() * (rotational_counter as FloatType) * std::f64::consts::PI * 2.0;
+                if let Some(color) = ray_caster.cast_ray(&propagator.get_diffuse_direction_ray(normalwise_angle, rotational_angle).unwrap()) {
+                    accumulator += color
+                }
+            }
+        }
+
+        accumulator = accumulator.mul_scalar(&((self.normalwise_samples * self.rotational_samples) as FloatType).recip());
+        accumulator *= *intersection.get_material().get_diffuse_color().unwrap();
+        Some(accumulator)
+    }
+}
+
+impl ColorCalculator for GlobalIlluminationColorCalculator {
+    fn get_color(&self, intersection: &RayIntersection, ray_caster: &RayCaster, illumination_caster: &IlluminationCaster) -> Option<Color> {
+        if let Some(color) = self.simple_calculator.get_color(intersection, ray_caster, illumination_caster) {
+            if intersection.get_material().get_diffuse_color().is_some() {
+                if let Some(gi_color) = self.calculate_gi(intersection, ray_caster) {
+                    Some(color + gi_color)
+                } else {
+                    Some(color)
+                }
+            } else {
+                Some(color)
+            }
+        } else {
+            None
+        }
     }
 }
