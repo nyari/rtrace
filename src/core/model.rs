@@ -118,7 +118,7 @@ mod tests {
     }
 
     impl Model for DummyModel {
-         fn get_intersection(&self, ray: &Ray) -> Option<RayIntersection> {
+         fn get_intersection(&self, _ray: &Ray) -> Option<RayIntersection> {
              None
          }
     }

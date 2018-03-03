@@ -173,15 +173,13 @@ impl Ray {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::{RayIntersection, RayIntersectionError, Material};
-    use defs::*;
+    use core::{RayIntersection, Material};
 
     #[test]
     fn test_ray_new1_assignment() {
         let test_ray = Ray::new(Point3::new(0.0, 0.0, 0.0), Vector3::new(1.0, 0.0, 0.0));
 
         assert_eq!(test_ray.get_distance_to_origin(), 0.0);
-        assert_eq!(test_ray.get_inside_counter(), 0);
         assert_eq!(test_ray.get_depth_counter(), 0);
     }
 
