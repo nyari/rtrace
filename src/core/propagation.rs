@@ -14,13 +14,18 @@ pub enum RayPropagatorError {
 }
 
 pub struct RayPropagator<'intersection> {
-    intersection: &'intersection RayIntersection
+    intersection: &'intersection RayIntersection,
+    view_axis: Unit<Vector3>
 }
 
 impl<'intersection> RayPropagator<'intersection> {
     pub fn new(intersection: &'intersection RayIntersection) -> Self {
+        let normal = intersection.get_normal_vector();
+        let view = intersection.get_view_direction();
+        let view_axis = normal.cross(&view);
         Self {
-            intersection: intersection
+            intersection: intersection,
+            view_axis: Unit::new_normalize(view_axis)
         }
     }
 
@@ -109,9 +114,8 @@ impl<'intersection> RayPropagator<'intersection> {
         let normal = self.intersection.get_normal_vector();
         let view = self.intersection.get_view_direction();
         let angle_to_rotate_view = na::angle(normal, &view) - angle_to_normal;
-        let view_axis = normal.cross(&view);
 
-        let rotate_to_normal = Rotation3::from_axis_angle(&Unit::new_normalize(view_axis), angle_to_rotate_view);
+        let rotate_to_normal = Rotation3::from_axis_angle(&self.view_axis, angle_to_rotate_view);
         let rotate_around_normal = Rotation3::from_axis_angle(&Unit::new_unchecked(*normal), angle_to_view_direction);
 
         rotate_around_normal * rotate_to_normal * view
