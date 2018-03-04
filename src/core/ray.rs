@@ -63,14 +63,14 @@ pub struct Ray {
     direction : Unit<Vector3>,
     origin : Point3,
     state : RayState,
-    mediums : VecDeque<Material>, 
+    mediums : Option<VecDeque<Material>>, 
 }
 
 impl Ray {
     pub fn new(origin: Point3, dir: Vector3) -> Self {
         Self    { direction: Unit::new_normalize(dir),
                   origin: origin,
-                  mediums: VecDeque::new(),
+                  mediums: None,
                   state: RayState { distance_to_origin: 0.0,
                                     depth_counter: 0,
                                     depth_limit: None }
@@ -80,7 +80,7 @@ impl Ray {
     pub fn new_depth_limited(origin: Point3, dir: Vector3, depth_limit: u32) -> Self {
         Self    { direction: Unit::new_normalize(dir),
                   origin: origin,
-                  mediums: VecDeque::with_capacity((depth_limit + 1) as usize),
+                  mediums: None,
                   state: RayState { distance_to_origin: 0.0,
                                     depth_counter: 0,
                                     depth_limit: Some(depth_limit) }
@@ -98,20 +98,42 @@ impl Ray {
         }
     }
 
+    fn push_medium(&mut self, material: Material) {
+        if let Some(ref mut mediums) = self.mediums {
+            mediums.push_back(material);
+        } else {
+            self.mediums = Some(VecDeque::new());
+            self.mediums.as_mut().unwrap().push_back(material);
+        }
+    }
+
+    fn pop_medium(&mut self) {
+        if self.mediums.is_some() {
+            if let Some(ref mut mediums) = self.mediums {
+                mediums.pop_back();
+            }
+            if self.mediums.as_ref().unwrap().is_empty() {
+                self.mediums = None;
+            }
+        }
+    }
+
     pub fn continue_ray_from_intersection_into_medium(intersection: &RayIntersection, direction: Vector3) -> Result<Self, RayError> {
-        match RayState::get_continuation(intersection.get_intersector_ray().get_state(), intersection.get_distance_to_intersection()) {
+        let original_ray = intersection.get_intersector_ray();
+
+        match RayState::get_continuation(original_ray.get_state(), intersection.get_distance_to_intersection()) {
             Ok (continued_state) => {
-                let mut cloned_mediums = intersection.get_intersector_ray().mediums.clone();
+                let mut result = Self {  direction: Unit::new_normalize(direction),
+                                         origin: *intersection.get_intersection_point(),
+                                         mediums: original_ray.mediums.clone(),
+                                         state: continued_state};
                 if intersection.was_inside() {
-                    cloned_mediums.pop_back();
+                    result.pop_medium();
                 } else {
-                    cloned_mediums.push_back(*intersection.get_material())
+                    result.push_medium(*intersection.get_material());
                 }
 
-                Ok (Self {  direction: Unit::new_normalize(direction),
-                            origin: *intersection.get_intersection_point(),
-                            mediums: cloned_mediums,
-                            state: continued_state})
+                Ok(result)
             },
             Err(e) => Err(e)
         }
@@ -178,8 +200,16 @@ impl Ray {
         self.state.get_depth_counter()
     }
 
-    pub fn get_medium(&self) -> Option<&Material> {
-        self.mediums.back()
+    pub fn get_medium(&self) -> Option<Material> {
+        if let Some(ref mediums) = self.mediums {
+            if let Some(last_item) = mediums.back() {
+                Some(last_item.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 }
 

@@ -60,7 +60,7 @@ impl RayIntersection {
         &self.material_at_intersection
     }
 
-    pub fn get_ray_medium(&self) -> Option<&Material> {
+    pub fn get_ray_medium(&self) -> Option<Material> {
         self.ray.get_medium()
     }
 
