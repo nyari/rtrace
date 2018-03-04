@@ -131,7 +131,7 @@ impl GlobalIlluminationColorCalculator {
             }
         }
 
-//      accumulator = accumulator.mul_scalar(&((self.normalwise_samples * self.rotational_samples) as FloatType).recip());
+        accumulator = accumulator.mul_scalar(&((self.normalwise_samples * self.rotational_samples) as FloatType).recip());
         accumulator *= *intersection.get_material().get_diffuse_color().unwrap();
         Some(accumulator)
     }
