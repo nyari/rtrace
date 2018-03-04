@@ -78,7 +78,11 @@ impl Screen {
     pub fn get_nth_pixel_screen_coord(&self, pixel_index: IntType) -> Result<Point2Int, ScreenError> {
         let x = pixel_index % self.horizontal_resolution;
         let y = pixel_index / self.horizontal_resolution;
-        Ok(Point2Int::new(x, y))
+        if 0 <= x && x < self.horizontal_resolution && 0 <= y && y < self.vertical_resolution {
+            Ok(Point2Int::new(x, y))
+        } else {
+            Err(ScreenError::PixelOutOfBoundsError)
+        }
     }
 }
 
@@ -166,58 +170,36 @@ impl View {
     }
 }
 
-pub struct PortionableViewIterator<'view> {
-    portion_count: IntType,
-    portion_index: IntType,
-    portion_state: IntType,
+
+pub struct ViewIterator<'view> {
+    state: IntType,
     view: &'view View,
 }
 
-impl<'view> PortionableViewIterator<'view> {
+impl<'view> ViewIterator<'view> {
     pub fn new(view: &'view View) -> Self {
         Self {  view: view,
-                portion_count: 1,
-                portion_index: 0,
-                portion_state: 0}
+                state: 0}
     }
 
-    pub fn new_portioned(view: &'view View, count: IntType, index: IntType) -> Self {
-        if count < 0 || count > view.get_screen_pixel_count() || index >= count {
-            panic!("Incorrect portioned PortionableViewIterator initializaion");
-        }
-
-        Self {  view: view,
-                portion_count: count,
-                portion_index: index,
-                portion_state: 0}
-    }
-
-    pub fn get_screen_coord(&self, index: &IntType) -> Point2Int {
+    pub fn get_screen_coord(&self, index: &IntType) -> Option<Point2Int> {
         let screen = self.view.get_screen();
-
-        screen.get_nth_pixel_screen_coord(*index).expect("PortableViewIterator internal error")
+        match screen.get_nth_pixel_screen_coord(*index) {
+            Ok(coord) => Some(coord),
+            _ => None
+        }
     }
 }
 
-impl<'view> Iterator for PortionableViewIterator<'view> {
+impl<'view> Iterator for ViewIterator<'view> {
     type Item = (Ray, Point2Int);
     fn next(&mut self) -> Option<(Ray, Point2Int)> {
-        let all_count = self.view.get_screen_pixel_count();
-        let portion_length = all_count / self.portion_count;
-        if self.portion_state < portion_length {
-            let index = portion_length * self.portion_index + self.portion_state;
-            self.portion_state += 1;
-            Some((self.view.get_ray_to_screen_pixel_index(index).expect("PortionableViewIterator internal error"), self.get_screen_coord(&index)))
-        } else if self.portion_index == self.portion_count - 1 {
-            let index = portion_length * self.portion_index + self.portion_state;
-            if index < all_count {
-                self.portion_state += 1;
-                Some((self.view.get_ray_to_screen_pixel_index(index).expect("PortionableViewIterator internal error"), self.get_screen_coord(&index)))
-            } else {
-                None
-            }
-        } else {
-            None
-        }
+        let result = match self.get_screen_coord(&self.state) {
+            Some(coordinate) => Some((self.view.get_ray_to_screen_coordinate(coordinate).unwrap(), coordinate)),
+            None => None
+        };
+        self.state += 1;
+        
+        result
     }
 }
