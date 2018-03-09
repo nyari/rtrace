@@ -111,11 +111,13 @@ impl GlobalIlluminationColorCalculator {
 
     pub fn calculate_gi(&self, intersection: &RayIntersection, ray_caster: &RayCaster) -> Option<Color> {
         let mut accumulator = Color::zero();
+        let mut accumulation_count = 0;
         let propagator = RayPropagator::new(intersection);
 
         if let Ok(ray) = propagator.get_diffuse_direction_ray(0.0, 0.0) {
-            if let Some(upward_color) = ray_caster.cast_ray(&ray) {
+            if let Some(upward_color) = ray_caster.cast_ray(&ray.get_maximum_depth_limited(self.depth_limit)) {
                 accumulator += upward_color;
+                accumulation_count += 1
             }
         } else {
             return None
@@ -126,13 +128,13 @@ impl GlobalIlluminationColorCalculator {
                 let normalwise_angle = (self.normalwise_samples as FloatType).recip() * (normalwise_counter as FloatType) * self.normalwise_max_angle;
                 let rotational_angle = (self.rotational_samples as FloatType).recip() * (rotational_counter as FloatType) * std::f64::consts::PI * 2.0;
                 if let Some(color) = ray_caster.cast_ray(&propagator.get_diffuse_direction_ray(normalwise_angle, rotational_angle).unwrap().get_maximum_depth_limited(self.depth_limit)) {
-                    accumulator += color
+                    accumulator += color;
+                    accumulation_count += 1;
                 }
             }
         }
 
-        accumulator = accumulator.mul_scalar(&((self.normalwise_samples * self.rotational_samples) as FloatType).recip());
-        accumulator *= *intersection.get_material().get_diffuse_color().unwrap();
+        accumulator = accumulator.mul_scalar(&(accumulation_count as FloatType).recip());
         Some(accumulator)
     }
 }
