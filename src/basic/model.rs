@@ -1,27 +1,39 @@
 use core::{Model, Material, RayIntersection, Ray, RayIntersectionError};
-use defs::{Point3, Vector3};
+use defs::{Point3, Vector3, FloatType};
 use tools::{CompareWithTolerance};
 use na;
+use na::{Unit};
 use std;
 
-pub struct SolidUnitSphere {
-    material: Material
+pub struct SolidSphere {
+    material: Material,
+    origo: Point3,
+    radius: FloatType
 }
 
-impl SolidUnitSphere {
+impl SolidSphere {
     pub fn new(material: Material) -> Self {
-        Self {  material: material}
+        Self {  material: material,
+                origo: Point3::new(0.0, 0.0, 0.0),
+                radius: 1.0}
+    }
+
+    pub fn new_positioned(material: Material, origo: Point3, radius: FloatType) -> Self {
+        Self {  material: material,
+                origo: origo,
+                radius: radius}
     }
 }
 
-impl Model for SolidUnitSphere {
+impl Model for SolidSphere {
     fn get_intersection(&self, ray: &Ray) -> Option<RayIntersection> {
         let dir = ray.get_direction();
         let origin = ray.get_origin();
+        let ray_origo = origin - self.origo;
 
         let a = dir.x.powi(2) + dir.y.powi(2) + dir.z.powi(2);
-        let b = 2.0 * (origin.x * dir.x + origin.y * dir.y + origin.z * dir.z);
-        let c = origin.x.powi(2) + origin.y.powi(2) + origin.z.powi(2) - 1.0;
+        let b = 2.0 * (ray_origo.x * dir.x + ray_origo.y * dir.y + ray_origo.z * dir.z);
+        let c = ray_origo.x.powi(2) + ray_origo.y.powi(2) + ray_origo.z.powi(2) - self.radius.powi(2);
 
         let determinant = b.powi(2) - 4.0 * a * c;
         if determinant.less_eps(&0.0) {
@@ -31,7 +43,7 @@ impl Model for SolidUnitSphere {
             let t2 = (-b - determinant.sqrt()) / (2.0 * a);
             let result_calc = |t, inside: bool| {
                 let intersection_point = origin + dir * t;
-                let normal = if !inside { intersection_point - Point3::origin() } else { Point3::origin() - intersection_point };
+                let normal = if !inside { intersection_point - self.origo } else { self.origo - intersection_point };
 
                 match RayIntersection::new(normal, intersection_point, ray, self.material, inside) {
                     Ok(intersection) => Some(intersection),
@@ -54,33 +66,51 @@ impl Model for SolidUnitSphere {
 }
 
 
-pub struct SolidXYPlane {
-    material: Material
+pub struct SolidPlane {
+    material: Material,
+    base: Point3,
+    normal: Vector3
 }
 
-impl SolidXYPlane {
+impl SolidPlane {
     pub fn new(material: Material) -> Self {
-        Self {  material: material}
+        Self {  material: material,
+                base: Point3::origin(),
+                normal: Vector3::new(0.0, 0.0, 1.0)
+        }
+    }
+
+    pub fn new_positioned(material: Material, base: Point3, normal: Unit<Vector3>) -> Self {
+        Self {  material: material,
+                base: base,
+                normal: normal.unwrap()
+        }
     }
 }
 
-impl Model for SolidXYPlane {
+impl Model for SolidPlane {
     fn get_intersection(&self, ray: &Ray) -> Option<RayIntersection> {
         let origin = ray.get_origin();
         let dir = ray.get_direction();
-        let normal = Vector3::new(0.0, 0.0, 1.0);
 
-        let u = normal.dot(dir);
+        let u = self.normal.dot(dir);
         if !u.near_zero_eps() {
-            let s = normal.x * origin.x + normal.y * origin.y + normal.z * origin.z;
-            let t = (-s) / u;
+            let k = self.normal.x * self.base.x + self.normal.y * self.base.y + self.normal.z * self.base.z;
+            let s = self.normal.x * origin.x + self.normal.y * origin.y + self.normal.z * origin.z;
+            let t = (k-s) / u;
             if t.greater_eq_eps(&0.0) {
-                let is_inside = na::angle(&normal, dir).less_eq_eps(&std::f64::consts::FRAC_PI_2);
+                let is_inside = na::angle(&self.normal, dir).less_eq_eps(&std::f64::consts::FRAC_PI_2);
                 let point = origin + dir * t;
-                let actual_normal = if !is_inside { normal } else { -normal };
-                match RayIntersection::new(actual_normal, point, ray, self.material, is_inside) {
-                    Ok(intersection) => Some(intersection),
-                    Err(RayIntersectionError::NoRayTravelDistance) => None,
+                if !is_inside {
+                    match RayIntersection::new(self.normal, point, ray, self.material, is_inside) {
+                        Ok(intersection) => Some(intersection),
+                        Err(RayIntersectionError::NoRayTravelDistance) => None,
+                    }
+                } else {
+                    match RayIntersection::new(-self.normal, point, ray, self.material, is_inside) {
+                        Ok(intersection) => Some(intersection),
+                        Err(RayIntersectionError::NoRayTravelDistance) => None,
+                    }
                 }
             } else {
                 None
@@ -99,7 +129,7 @@ mod tests {
 
     fn test_solid_unit_sphere(test_ray: &Ray, expected_result: Option<&Point3>) {
         let test_material = Material::new_shiny(Color::new(1.0, 1.0, 1.0), (Color::new(1.0, 1.0, 1.0), 1.5), None);
-        let test_sphere = SolidUnitSphere::new(test_material);
+        let test_sphere = SolidSphere::new(test_material);
 
         let intersection_result = test_sphere.get_intersection(test_ray);
 
