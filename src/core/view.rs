@@ -1,4 +1,4 @@
-use defs::{Point3, Vector3, Point2Int, FloatType, IntType};
+use defs::{Point3, Vector3, Matrix3, Point2Int, FloatType, IntType};
 use core::{Ray};
 use tools::{CompareWithTolerance, Between, Vector3Extensions};
 use na::{Unit};
@@ -12,6 +12,8 @@ pub struct Screen {
     center: Point3,
     up: Unit<Vector3>,
     left: Unit<Vector3>,
+    normal: Unit<Vector3>,
+    to_plane_trasform_matrix: Matrix3,
     width: FloatType,
     height: FloatType,
     horizontal_resolution: IntType,
@@ -31,10 +33,16 @@ impl Screen {
         let up_normalized = Unit::new_normalize(up);
         let left_normlized = Unit::new_unchecked(up_normalized.cross(&normal_normalized));
         let up_corrected = Unit::new_unchecked(normal_normalized.cross(&left_normlized));
+        let transform_matrix = {
+            let mut result = Matrix3::from_columns(&[left_normlized.unwrap().clone(), up_normalized.unwrap().clone(), normal_normalized.unwrap().clone()]);
+            result.try_inverse().expect("Uninvertible screen transformation matrix")
+        };
 
         Self {  center: center,
                 up: up_corrected,
                 left: left_normlized,
+                normal: normal_normalized,
+                to_plane_trasform_matrix: transform_matrix,
                 width: width,
                 height: height,
                 horizontal_resolution: h_res,
@@ -55,8 +63,8 @@ impl Screen {
     }
 
     fn get_pixel_coord_core(&self, coord: Point2Int) -> Point3 {
-        let left = -(((coord.x as FloatType / ((self.horizontal_resolution as FloatType) / 2.0)) - 1.0) * self.width);
-        let up = -(((coord.y as FloatType / ((self.vertical_resolution as FloatType) / 2.0)) - 1.0) * self.height);
+        let left = -(((coord.x as FloatType / ((self.horizontal_resolution as FloatType) / 2.0)) - 1.0) * self.width / 2.0);
+        let up = -(((coord.y as FloatType / ((self.vertical_resolution as FloatType) / 2.0)) - 1.0) * self.height / 2.0);
 
         self.center + (self.up.as_ref() * up + self.left.as_ref() * left)
     }
@@ -82,6 +90,47 @@ impl Screen {
             Ok(Point2Int::new(x, y))
         } else {
             Err(ScreenError::PixelOutOfBoundsError)
+        }
+    }
+
+    fn get_screen_plane_intersection_point(&self, ray: &Ray) -> Option<Point3> {
+        let origin = ray.get_origin();
+        let dir = ray.get_direction();
+
+        let u = self.normal.dot(dir);
+        if !u.near_zero_eps() {
+            let k = self.normal.x * self.center.x + self.normal.y * self.center.y + self.normal.z * self.center.z;
+            let s = self.normal.x * origin.x + self.normal.y * origin.y + self.normal.z * origin.z;
+            let t = (k-s) / u;
+            if t.greater_eq_eps(&0.0) {
+                Some(origin + dir * t)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn get_intersected_pixel(&self, ray: &Ray) -> Option<Point2Int> {
+        if let Some(plane_intersection_point) = self.get_screen_plane_intersection_point(ray) {
+            let path_from_origin_to_intersection = plane_intersection_point - self.center;
+            let transformed_vector = self.to_plane_trasform_matrix * path_from_origin_to_intersection;
+            let left_scaler = transformed_vector.x;
+            let up_scaler = transformed_vector.y;
+
+            let left_multiplier = left_scaler / (self.width / 2.0);
+            let up_multiplier = up_scaler / (self.height / 2.0);
+
+            if left_multiplier.abs().less_eq_eps(&1.0) && up_multiplier.abs().less_eq_eps(&1.0) {
+                let x = (self.horizontal_resolution as FloatType / 2.0) * (-left_multiplier + 1.0);
+                let y = (self.vertical_resolution as FloatType / 2.0) * (-up_multiplier + 1.0);
+                Some(Point2Int::new(x.round() as IntType,y.round() as IntType))
+            } else {
+                None
+            }
+        } else {
+            None
         }
     }
 }
@@ -157,6 +206,11 @@ impl View {
         }
     }
 
+    pub fn get_screen_coord_to_world_point(&self, point: &Point3) -> Option<Point2Int> {
+        let test_ray = Ray::new(*point, (self.eye.position - point));
+        self.screen.get_intersected_pixel(&test_ray)
+    }
+
     pub fn get_screen(&self) -> &Screen {
         &self.screen
     }
@@ -201,5 +255,31 @@ impl<'view> Iterator for ViewIterator<'view> {
         self.state += 1;
         
         result
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn screen_get_intersected_pixel_hit_origin() {
+        let test_screen = Screen::new_unit(Point3::origin(), Vector3::new(0.0, 0.0, 1.0), Vector3::new(0.0, 1.0, 0.0), 1.0, 1.0, 1000);
+        let test_ray = Ray::new(Point3::new(0.0, 0.0, 1.0), Vector3::new(0.0, 0.0, -1.0));
+
+        let result = test_screen.get_intersected_pixel(&test_ray).expect("Should have hit screen");
+
+        assert_eq!(result, Point2Int::new(500, 500));
+    }
+
+    #[test]
+    fn screen_get_intersected_pixel_hit_to_not_origin() {
+        let test_screen = Screen::new_unit(Point3::origin(), Vector3::new(0.0, 0.0, 1.0), Vector3::new(0.0, 1.0, 0.0), 1.0, 1.0, 1000);
+        let test_ray = Ray::new(Point3::new(0.25, 0.25, 1.0), Vector3::new(0.0, 0.0, -1.0));
+
+        let result = test_screen.get_intersected_pixel(&test_ray).expect("Should have hit screen");
+
+        assert_eq!(result, Point2Int::new(250, 250));
     }
 }
