@@ -1,9 +1,6 @@
 use core::{RayCaster, RayIntersection, Color, ColorCalculator, Material,
           IlluminationCaster, LightIntersection, RayPropagator, RayPropagatorError};
 
-use defs::{FloatType};
-use std;
-
 pub struct SimpleColorCalculator {
     
 }

@@ -3,8 +3,7 @@ use defs::{FloatType, Vector3};
 use core::{Ray, RayError, RayIntersection, ColorComponent};
 use tools::{CompareWithTolerance};
 
-use na;
-use na::{Rotation3, Unit};
+use na::{Rotation3};
 
 #[derive(Debug)]
 pub enum RayPropagatorError {
@@ -14,18 +13,13 @@ pub enum RayPropagatorError {
 }
 
 pub struct RayPropagator<'intersection> {
-    intersection: &'intersection RayIntersection,
-    view_axis: Unit<Vector3>
+    intersection: &'intersection RayIntersection
 }
 
 impl<'intersection> RayPropagator<'intersection> {
     pub fn new(intersection: &'intersection RayIntersection) -> Self {
-        let normal = intersection.get_normal_vector();
-        let view = intersection.get_view_direction();
-        let view_axis = normal.cross(&view);
         Self {
-            intersection: intersection,
-            view_axis: Unit::new_normalize(view_axis)
+            intersection: intersection
         }
     }
 
@@ -110,15 +104,10 @@ impl<'intersection> RayPropagator<'intersection> {
         }
     }
 
-    pub fn get_diffuse_direction_vector(&self, angle_to_normal: FloatType, angle_to_view_direction: FloatType) -> Vector3 {
-        let normal = self.intersection.get_normal_vector();
-        let view = self.intersection.get_view_direction();
-        let angle_to_rotate_view = na::angle(normal, &view) - angle_to_normal;
-
-        let rotate_to_normal = Rotation3::from_axis_angle(&self.view_axis, angle_to_rotate_view);
-        let rotate_around_normal = Rotation3::from_axis_angle(&Unit::new_unchecked(*normal), angle_to_view_direction);
-
-        rotate_around_normal * rotate_to_normal * view
+    pub fn get_diffuse_direction_vector(&self, pitch: FloatType, yaw: FloatType) -> Vector3 {
+        use std;
+        let euler_rotation = Rotation3::from_euler_angles(0.0, std::f64::consts::FRAC_PI_2 - pitch, yaw);
+        euler_rotation * self.intersection.get_normal_vector()
     }
 
     pub fn get_diffuse_direction_ray(&self, angle_to_normal: FloatType, angle_to_view_direction: FloatType) -> Result<Ray, RayPropagatorError> {
@@ -137,10 +126,11 @@ mod tests {
     use super::*;
     use defs::{Point3};
     use core::{Material};
+    use na::{Unit};
     use std::f64::consts::{PI};
 
     #[test]
-    fn diffuse_direction_vector_1() {
+    fn diffuse_direction_vector() {
         let ray = Ray::new(Point3::new(1.0, 0.0, 1.0), Vector3::new(-1.0, 0.0, -1.0));
         let intersection = RayIntersection::new(Vector3::new(0.0, 0.0, 1.0), Point3::new(0.0, 0.0, 0.0),
                                                 &ray, Material::new_useless(), false).unwrap();

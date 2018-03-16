@@ -282,4 +282,12 @@ mod tests {
 
         assert_eq!(result, Point2Int::new(250, 250));
     }
+
+    #[test]
+    fn screen_get_intersected_pixel_miss() {
+        let test_screen = Screen::new_unit(Point3::origin(), Vector3::new(0.0, 0.0, 1.0), Vector3::new(0.0, 1.0, 0.0), 1.0, 1.0, 1000);
+        let test_ray = Ray::new(Point3::new(0.6, 0.6, 1.0), Vector3::new(0.0, 0.0, -1.0));
+
+        assert!(test_screen.get_intersected_pixel(&test_ray).is_none());
+    }
 }
