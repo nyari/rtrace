@@ -10,6 +10,7 @@ approx = "~0"
 float-cmp = "~0"
 num-traits = "~0"
 rand = "~0"
+uuid = { version = "~0", features = ["v3", "v4", "v5"] }
 
 [profile.dev]
 opt-level = 0

@@ -4,24 +4,32 @@ use tools::{CompareWithTolerance};
 use na;
 use na::{Unit};
 use std;
+use uuid::{Uuid};
 
 pub struct SolidSphere {
     material: Material,
     origo: Point3,
-    radius: FloatType
+    radius: FloatType,
+    identifier: Uuid
 }
 
 impl SolidSphere {
     pub fn new(material: Material) -> Self {
         Self {  material: material,
                 origo: Point3::new(0.0, 0.0, 0.0),
-                radius: 1.0}
+                radius: 1.0,
+                identifier: Uuid::new_v4()}
     }
 
     pub fn new_positioned(material: Material, origo: Point3, radius: FloatType) -> Self {
         Self {  material: material,
                 origo: origo,
-                radius: radius}
+                radius: radius,
+                identifier: Uuid::new_v4()}
+    }
+
+    pub fn set_custom_identifier(&mut self, identifier: Uuid) {
+        self.identifier = identifier;
     }
 }
 
@@ -45,9 +53,10 @@ impl Model for SolidSphere {
                 let intersection_point = origin + dir * t;
                 let normal = if !inside { intersection_point - self.origo } else { self.origo - intersection_point };
 
-                match RayIntersection::new(normal, intersection_point, ray, self.material, inside) {
+                match RayIntersection::new_model_identifier(normal, intersection_point, ray, self.material, inside, self.identifier) {
                     Ok(intersection) => Some(intersection),
                     Err(RayIntersectionError::NoRayTravelDistance) => None,
+                    _ => panic!("Unrecoverable RayIntersectin:new_model_identifier error")
                 }
             };
 
@@ -69,22 +78,29 @@ impl Model for SolidSphere {
 pub struct SolidPlane {
     material: Material,
     base: Point3,
-    normal: Vector3
+    normal: Vector3,
+    identifier: Uuid,
 }
 
 impl SolidPlane {
     pub fn new(material: Material) -> Self {
         Self {  material: material,
                 base: Point3::origin(),
-                normal: Vector3::new(0.0, 0.0, 1.0)
+                normal: Vector3::new(0.0, 0.0, 1.0),
+                identifier: Uuid::new_v4()
         }
     }
 
     pub fn new_positioned(material: Material, base: Point3, normal: Unit<Vector3>) -> Self {
         Self {  material: material,
                 base: base,
-                normal: normal.unwrap()
+                normal: normal.unwrap(),
+                identifier: Uuid::new_v4()
         }
+    }
+
+    pub fn set_custom_identifier(&mut self, identifier: Uuid) {
+        self.identifier = identifier;
     }
 }
 
@@ -102,14 +118,16 @@ impl Model for SolidPlane {
                 let is_inside = na::angle(&self.normal, dir).less_eq_eps(&std::f64::consts::FRAC_PI_2);
                 let point = origin + dir * t;
                 if !is_inside {
-                    match RayIntersection::new(self.normal, point, ray, self.material, is_inside) {
+                    match RayIntersection::new_model_identifier(self.normal, point, ray, self.material, is_inside, self.identifier) {
                         Ok(intersection) => Some(intersection),
                         Err(RayIntersectionError::NoRayTravelDistance) => None,
+                        _ => panic!("Unrecoverable RayIntersectin:new_model_identifier error")
                     }
                 } else {
-                    match RayIntersection::new(-self.normal, point, ray, self.material, is_inside) {
+                    match RayIntersection::new_model_identifier(-self.normal, point, ray, self.material, is_inside, self.identifier) {
                         Ok(intersection) => Some(intersection),
                         Err(RayIntersectionError::NoRayTravelDistance) => None,
+                        _ => panic!("Unrecoverable RayIntersectin:new_model_identifier error")
                     }
                 }
             } else {

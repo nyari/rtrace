@@ -91,11 +91,15 @@ impl Ray {
         Self::new_depth_limited(origin, dir, 1)
     }
 
-    pub fn get_maximum_depth_limited(&self, maximum_depth_limit: u32) -> Self {
+    pub fn set_maximum_depth_limited(&self, maximum_depth_limit: u32) -> Self {
         Self {
             state: self.state.get_maximum_depth_limited(maximum_depth_limit),
             ..self.clone()
         }
+    }
+
+    pub fn set_maximum_depth_limited_mut(&mut self, maximum_depth_limit: u32){
+        self.state = self.state.get_maximum_depth_limited(maximum_depth_limit);
     }
 
     fn push_medium(&mut self, material: Material) {
