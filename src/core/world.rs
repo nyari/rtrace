@@ -2,12 +2,12 @@ use core::{Color, Ray, RayIntersection, Illuminator, Intersector, LightIntersect
 use tools::{Vector3Extensions, CompareWithTolerance};
 
 
-pub trait RayCaster {
+pub trait RayCaster: Send + Sync {
     fn cast_ray(&self, ray: &Ray) -> Option<Color>;
     fn cast_colored_light_ray(&self, ray: &Ray, intersection: &RayIntersection) -> Option<Color>;
 }
 
-pub trait IlluminationCaster {
+pub trait IlluminationCaster: Send + Sync {
     fn get_illumination_at(&self, intersection: &RayIntersection) -> Vec<LightIntersection>;
 }
 
