@@ -148,6 +148,34 @@ impl Screen {
     }
 }
 
+pub struct ScreenIterator<'screen> {
+    state: IntType,
+    screen: &'screen Screen,
+}
+
+impl<'screen> ScreenIterator<'screen> {
+    pub fn new(screen: &'screen Screen) -> Self {
+        Self {  screen: screen,
+                state: 0}
+    }
+
+    pub fn get_screen_coord(&self, index: &IntType) -> Option<Point2Int> {
+        match self.screen.get_pixel_screen_coord_by_index(*index) {
+            Ok(coord) => Some(coord),
+            _ => None
+        }
+    }
+}
+
+impl<'screen> Iterator for ScreenIterator<'screen> {
+    type Item = Point2Int;
+    fn next(&mut self) -> Option<Point2Int> {
+        let result = self.get_screen_coord(&self.state);
+        self.state += 1;
+        result
+    }
+}
+
 pub struct Eye {
     position: Point3,
     direction: Unit<Vector3>,
