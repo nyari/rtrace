@@ -7,6 +7,8 @@ pub mod material;
 pub mod color;
 pub mod view;
 pub mod propagation;
+pub mod worldview;
+pub mod execution;
 
 pub use self::model::*;
 pub use self::ray::*;
@@ -18,3 +20,5 @@ pub use self::material::*;
 pub use self::color::*;
 pub use self::view::*;
 pub use self::propagation::*;
+pub use self::worldview::*;
+pub use self::execution::*;

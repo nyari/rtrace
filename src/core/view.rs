@@ -54,7 +54,7 @@ impl Screen {
         Self::new(center, normal, up, width_to_height_ratio * height, height, (vertical_resolution * width_to_height_ratio).round() as IntType, v_res)
     }
 
-    pub fn get_resolutoion(&self) -> (IntType, IntType) {
+    pub fn get_resolution(&self) -> (IntType, IntType) {
         (self.horizontal_resolution, self.vertical_resolution)
     }
 
@@ -62,32 +62,45 @@ impl Screen {
         self.horizontal_resolution * self.vertical_resolution
     }
 
-    fn get_pixel_coord_core(&self, coord: Point2Int) -> Point3 {
+    fn check_pixel_bounds(&self, coord: &Point2Int) -> bool {
+        coord.x.between(&0, &self.horizontal_resolution) && coord.y.between(&0, &self.vertical_resolution)
+    }
+
+    fn get_pixel_coord_core(&self, coord: &Point2Int) -> Point3 {
         let left = -(((coord.x as FloatType / ((self.horizontal_resolution as FloatType) / 2.0)) - 1.0) * self.width / 2.0);
         let up = -(((coord.y as FloatType / ((self.vertical_resolution as FloatType) / 2.0)) - 1.0) * self.height / 2.0);
 
         self.center + (self.up.as_ref() * up + self.left.as_ref() * left)
     }
 
-    pub fn get_pixel_coord(&self, coord: Point2Int) -> Result<Point3, ScreenError> {
-        if coord.x.between(&0, &self.horizontal_resolution) && coord.y.between(&0, &self.vertical_resolution) {
-            Ok(self.get_pixel_coord_core(coord))
+    pub fn get_pixel_coord(&self, coord: &Point2Int) -> Result<Point3, ScreenError> {
+        if self.check_pixel_bounds(coord) {
+            Ok(self.get_pixel_coord_core(&coord))
         } else {
             Err(ScreenError::PixelOutOfBoundsError)
         }
     }
 
-    pub fn get_nth_pixel_coord(&self, pixel_index: IntType) -> Result<Point3, ScreenError> {
+    pub fn get_pixel_coord_by_index(&self, pixel_index: IntType) -> Result<Point3, ScreenError> {
         let x = pixel_index % self.horizontal_resolution;
         let y = pixel_index / self.horizontal_resolution;
-        self.get_pixel_coord(Point2Int::new(x, y))
+        self.get_pixel_coord(&Point2Int::new(x, y))
     }
 
-    pub fn get_nth_pixel_screen_coord(&self, pixel_index: IntType) -> Result<Point2Int, ScreenError> {
+    pub fn get_pixel_screen_coord_by_index(&self, pixel_index: IntType) -> Result<Point2Int, ScreenError> {
         let x = pixel_index % self.horizontal_resolution;
         let y = pixel_index / self.horizontal_resolution;
-        if 0 <= x && x < self.horizontal_resolution && 0 <= y && y < self.vertical_resolution {
-            Ok(Point2Int::new(x, y))
+        let potential_result = Point2Int::new(x, y);
+        if self.check_pixel_bounds(&potential_result) {
+            Ok(potential_result)
+        } else {
+            Err(ScreenError::PixelOutOfBoundsError)
+        }
+    }
+
+    pub fn get_pixel_index_by_screen_coord(&self, coord: &Point2Int) -> Result<IntType, ScreenError> {
+        if self.check_pixel_bounds(coord) {
+            Ok(coord.x + self.horizontal_resolution * coord.y)
         } else {
             Err(ScreenError::PixelOutOfBoundsError)
         }
@@ -185,7 +198,7 @@ impl View {
     }
 
     pub fn get_ray_to_screen_coordinate(&self, coordinate: Point2Int) -> Result<Ray, ViewError> {
-        match self.screen.get_pixel_coord(coordinate) {
+        match self.screen.get_pixel_coord(&coordinate) {
             Ok(point) => {
                 let eye_coord = self.eye.get_position();
                 let ray_direction = point - eye_coord;
@@ -196,7 +209,7 @@ impl View {
     }
 
     pub fn get_ray_to_screen_pixel_index(&self, index: IntType) -> Result<Ray, ViewError> {
-        match self.screen.get_nth_pixel_coord(index) {
+        match self.screen.get_pixel_coord_by_index(index) {
             Ok(point) => {
                 let eye_coord = self.eye.get_position();
                 let ray_direction = point - eye_coord;
@@ -238,7 +251,7 @@ impl<'view> ViewIterator<'view> {
 
     pub fn get_screen_coord(&self, index: &IntType) -> Option<Point2Int> {
         let screen = self.view.get_screen();
-        match screen.get_nth_pixel_screen_coord(*index) {
+        match screen.get_pixel_screen_coord_by_index(*index) {
             Ok(coord) => Some(coord),
             _ => None
         }

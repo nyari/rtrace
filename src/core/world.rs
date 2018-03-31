@@ -5,6 +5,7 @@ use tools::{Vector3Extensions, CompareWithTolerance};
 pub trait RayCaster: Send + Sync {
     fn cast_ray(&self, ray: &Ray) -> Option<Color>;
     fn cast_colored_light_ray(&self, ray: &Ray, intersection: &RayIntersection) -> Option<Color>;
+    fn cast_model_ray(&self, ray: &Ray) -> Option<RayIntersection>;
 }
 
 pub trait IlluminationCaster: Send + Sync {
@@ -67,6 +68,10 @@ impl<IntersectorType: Intersector + Send + Sync,
         }
 
         Some(resulting_color)
+    }
+
+    fn cast_model_ray(&self, ray: &Ray) -> Option<RayIntersection> {
+        self.intersector.get_nearest_intersection(ray)
     }
 }
 
