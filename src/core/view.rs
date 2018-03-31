@@ -8,6 +8,8 @@ pub enum ScreenError {
     PixelOutOfBoundsError
 }
 
+
+#[derive(Copy, Clone)]
 pub struct Screen {
     center: Point3,
     up: Unit<Vector3>,
@@ -176,6 +178,7 @@ impl<'screen> Iterator for ScreenIterator<'screen> {
     }
 }
 
+#[derive(Copy, Clone)]
 pub struct Eye {
     position: Point3,
     direction: Unit<Vector3>,
@@ -201,6 +204,7 @@ pub enum ViewError {
     ScreenRelated(ScreenError)
 }
 
+#[derive(Copy, Clone)]
 pub struct View {
     screen: Screen,
     eye: Eye

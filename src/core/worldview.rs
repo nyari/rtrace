@@ -30,7 +30,12 @@ pub trait SceneBuffer: Scene + Send + Sync { //Internally mutable (Mutex), threa
     fn get_pixel_value(&self, pixel: Point2Int) -> Result<Option<Color>, SceneBufferError>;
 }
 
-struct WorldView<WorldT> {
+
+pub trait WorldViewTrait: Scene + SceneBuffer {
+
+}
+
+pub struct WorldView<WorldT> {
     world: Arc<WorldT>,
     view: View,
     result_buffer: Arc<Mutex<Vec<Option<Color>>>>,
@@ -187,4 +192,10 @@ impl<WorldT> SceneBuffer for WorldView<WorldT>
             Err(SceneBufferError::InvalidInputCoord)
         }
     }
+}
+
+impl<WorldT> WorldViewTrait for WorldView<WorldT>
+    where WorldT: RayCaster + IlluminationCaster + Send + Sync
+{
+
 }
