@@ -325,6 +325,20 @@ mod tests {
     }
 
     #[test]
+    fn screen_get_intersected_pixel_hit_not_to_origin_not_perpendicular() {
+        let target_on_screen_point = Point3::new(0.25, 0.25, 0.0);
+        let eye_point = Point3::new(0.0, 0.0, -1.0);
+        let eye_ray_direction = (target_on_screen_point - eye_point).normalize();
+
+        let test_screen = Screen::new_unit(Point3::origin(), Vector3::new(0.0, 0.0, 1.0), Vector3::new(0.0, 1.0, 0.0), 1.0, 1.0, 1000);
+        let test_ray = Ray::new(eye_point + (eye_ray_direction * 5.0), -eye_ray_direction);
+
+        let result = test_screen.get_intersected_pixel(&test_ray).expect("Should have hit screen");
+
+        assert_eq!(result, Point2Int::new(250, 250));
+    }
+
+    #[test]
     fn screen_get_intersected_pixel_miss() {
         let test_screen = Screen::new_unit(Point3::origin(), Vector3::new(0.0, 0.0, 1.0), Vector3::new(0.0, 1.0, 0.0), 1.0, 1.0, 1000);
         let test_ray = Ray::new(Point3::new(0.6, 0.6, 1.0), Vector3::new(0.0, 0.0, -1.0));
