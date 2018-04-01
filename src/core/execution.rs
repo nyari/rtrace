@@ -1,9 +1,15 @@
+pub trait ThreadSafeIterator: Send + Sync {
+    type Item;
+
+    fn next(&self) -> Option<Self::Item>;
+}
+
 pub trait RenderingTask: Send + Sync {
     fn execute(self: Box<Self>);
 }
 
 pub trait RenderingTaskProducer: Send + Sync {
-    fn create_task_iterator(&self) -> Box<Iterator<Item=Box<RenderingTask>>>;
+    fn create_task_iterator(&self) -> Box<ThreadSafeIterator<Item=Box<RenderingTask>>>;
 }
 
 

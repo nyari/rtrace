@@ -1,6 +1,6 @@
-use core::{RenderingTaskProducer, RenderingTask, SceneError, Screen, WorldViewTrait};
+use core::{RenderingTaskProducer, RenderingTask, SceneError, Screen, WorldViewTrait, ThreadSafeIterator};
 use defs::{Point2Int, IntType};
-use std::sync::{Arc};
+use std::sync::{Arc, Mutex};
 
 pub struct WorldViewTaskProducer {
     worldview: Arc<WorldViewTrait>,
@@ -15,7 +15,7 @@ impl WorldViewTaskProducer {
 }
 
 impl RenderingTaskProducer for WorldViewTaskProducer {
-    fn create_task_iterator(&self) -> Box<Iterator<Item=Box<RenderingTask>>> {
+    fn create_task_iterator(&self) -> Box<ThreadSafeIterator<Item=Box<RenderingTask>>> {
         Box::new(WorldViewTaskIterator::new(Arc::clone(&self.worldview)))
     }
 }
@@ -23,7 +23,7 @@ impl RenderingTaskProducer for WorldViewTaskProducer {
 pub struct WorldViewTaskIterator {
     worldview: Arc<WorldViewTrait>,
     screen: Screen,
-    screen_pixel_index: IntType,
+    screen_pixel_index: Mutex<IntType>,
 }
 
 impl WorldViewTaskIterator {
@@ -33,7 +33,7 @@ impl WorldViewTaskIterator {
         Self {
             worldview: worldview,
             screen: screen_clone,
-            screen_pixel_index: 0
+            screen_pixel_index: Mutex::new(0)
         }
     }
 
@@ -42,17 +42,21 @@ impl WorldViewTaskIterator {
     }
 }
 
-impl Iterator for WorldViewTaskIterator {
+impl ThreadSafeIterator for WorldViewTaskIterator {
     type Item = Box<RenderingTask>;
 
-    fn next(&mut self) -> Option<Box<RenderingTask>> {
-        let coord_result = self.screen.get_pixel_screen_coord_by_index(self.screen_pixel_index);
-        self.screen_pixel_index += 1;
+    fn next(&self) -> Option<Box<RenderingTask>> {
+        if let Ok(mut screen_pixel_index) = self.screen_pixel_index.lock() { 
+            let coord_result = self.screen.get_pixel_screen_coord_by_index(*screen_pixel_index);
+            *screen_pixel_index += 1;
 
-        if let Ok(coord) = coord_result {
-            Some(self.create_task(coord))
+            if let Ok(coord) = coord_result {
+                Some(self.create_task(coord))
+            } else {
+                None
+            }
         } else {
-            None
+            panic!("Mutex lock error inside ThreadSafeIterator");
         }
     }
 }
