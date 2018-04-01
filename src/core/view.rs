@@ -1,6 +1,6 @@
 use defs::{Point3, Vector3, Matrix3, Point2Int, FloatType, IntType};
 use core::{Ray};
-use tools::{CompareWithTolerance, Between, Vector3Extensions};
+use tools::{CompareWithTolerance, Vector3Extensions};
 use na::{Unit};
 
 #[derive(Debug)]
@@ -65,7 +65,7 @@ impl Screen {
     }
 
     fn check_pixel_bounds(&self, coord: &Point2Int) -> bool {
-        coord.x.between(&0, &self.horizontal_resolution) && coord.y.between(&0, &self.vertical_resolution)
+        (0 <= coord.x && coord.x < self.horizontal_resolution) && (0 <= coord.y && coord.y < self.vertical_resolution)
     }
 
     fn get_pixel_coord_core(&self, coord: &Point2Int) -> Point3 {
