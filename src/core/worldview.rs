@@ -26,7 +26,7 @@ pub enum SceneBufferError {
 pub trait SceneBuffer: Scene + Send + Sync { //Internally mutable (Mutex), thread safe
     fn set_pixel_value(&self, pixel: Point2Int, color: &Color) -> Result<(), SceneBufferError>;
     fn accumulate_pixel_value(&self, pixel: Point2Int, color: &Color) -> Result<(), SceneBufferError>;
-    fn reset_pixed(&self, pixel: Point2Int) -> Result<(), SceneBufferError>;
+    fn reset_pixel(&self, pixel: Point2Int) -> Result<(), SceneBufferError>;
     fn get_pixel_value(&self, pixel: Point2Int) -> Result<Option<Color>, SceneBufferError>;
 }
 
@@ -137,7 +137,7 @@ impl<WorldT> SceneBuffer for WorldView<WorldT>
     fn set_pixel_value(&self, pixel: Point2Int, color: &Color) -> Result<(), SceneBufferError> {
         if let Some(index) = self.map_pixel_to_buffer(pixel) {
             if let Ok(ref mut result_buffer_acessor) = self.result_buffer.lock() {
-                let buffer_item = result_buffer_acessor.get_mut(index).expect("map_pixel_to_buffer should make this impossible");
+                let buffer_item = result_buffer_acessor.get_mut(index).expect(&format!("set_pixel_value map_pixel_to_buffer should make this impossible. Index: {}", index));
                 *buffer_item = Some(*color);
                 Ok(())
             } else {
@@ -151,11 +151,11 @@ impl<WorldT> SceneBuffer for WorldView<WorldT>
     fn accumulate_pixel_value(&self, pixel: Point2Int, color: &Color) -> Result<(), SceneBufferError> {
         if let Some(index) = self.map_pixel_to_buffer(pixel) {
             if let Ok(ref mut result_buffer_acessor) = self.result_buffer.lock() {
-                let buffer_item = result_buffer_acessor.get_mut(index).expect("map_pixel_to_buffer should make this impossible");
+                let buffer_item = result_buffer_acessor.get_mut(index).expect(&format!("accumulate_pixel_value map_pixel_to_buffer should make this impossible. Index: {}", index));
                 if let Some(ref mut contained_color) = *buffer_item {
                     *contained_color += *color;
                 } else {
-                    *buffer_item = None;
+                    *buffer_item = Some(*color);
                 }
                 Ok(())
             } else {
@@ -166,10 +166,10 @@ impl<WorldT> SceneBuffer for WorldView<WorldT>
         }
     }
 
-    fn reset_pixed(&self, pixel: Point2Int) -> Result<(), SceneBufferError> {
+    fn reset_pixel(&self, pixel: Point2Int) -> Result<(), SceneBufferError> {
         if let Some(index) = self.map_pixel_to_buffer(pixel) {
             if let Ok(ref mut result_buffer_acessor) = self.result_buffer.lock() {
-                let buffer_item = result_buffer_acessor.get_mut(index).expect("map_pixel_to_buffer should make this impossible");
+                let buffer_item = result_buffer_acessor.get_mut(index).expect(&format!("reset_pixel map_pixel_to_buffer should make this impossible. Index: {}", index));
                 *buffer_item = None;
                 Ok(())
             } else {
@@ -183,7 +183,7 @@ impl<WorldT> SceneBuffer for WorldView<WorldT>
     fn get_pixel_value(&self, pixel: Point2Int) -> Result<Option<Color>, SceneBufferError> {
         if let Some(index) = self.map_pixel_to_buffer(pixel) {
             if let Ok(ref mut result_buffer_acessor) = self.result_buffer.lock() {
-                let buffer_item = result_buffer_acessor.get_mut(index).expect("map_pixel_to_buffer should make this impossible");
+                let buffer_item = result_buffer_acessor.get_mut(index).expect(&format!("get_pixel_value map_pixel_to_buffer should make this impossible. Index: {}", index));
                 Ok(*buffer_item)
             } else {
                 Err(SceneBufferError::MutexLockError)
