@@ -56,7 +56,7 @@ impl ThreadSafeIterator for WorldViewTaskIterator {
                 None
             }
         } else {
-            panic!("Mutex lock error inside ThreadSafeIterator");
+            panic!("Mutex lock error inside WorldViewTaskIterator");
         }
     }
 }
