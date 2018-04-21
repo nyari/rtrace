@@ -1,5 +1,5 @@
 use defs::{Point2Int};
-use core::{RayCaster, IlluminationCaster, View, Color, RayIntersection, Ray, LightIntersection};
+use core::{RayCaster, IlluminationCaster, View, Color, RayIntersection, Ray, LightIntersection, Screen, ScreenIterator};
 use std::sync::{Arc, Mutex};
 
 
@@ -28,11 +28,104 @@ pub trait SceneBuffer: Scene + Send + Sync { //Internally mutable (Mutex), threa
     fn accumulate_pixel_value(&self, pixel: Point2Int, color: &Color) -> Result<(), SceneBufferError>;
     fn reset_pixel(&self, pixel: Point2Int) -> Result<(), SceneBufferError>;
     fn get_pixel_value(&self, pixel: Point2Int) -> Result<Option<Color>, SceneBufferError>;
+    fn get_screen(&self) -> &Screen;
+    fn iter<'buffer>(&'buffer self) -> SceneBufferIterator<Item=(Point2Int, Option<Color>)> {
+        SceneBufferIterator::new(self)
+    }
 }
 
 
+pub struct SceneBufferIterator<'buffer> {
+    buffer: &'buffer SceneBuffer,
+    screen_iterator: Option<ScreenIterator<'buffer>>
+}
+
+impl<'buffer> SceneBufferIterator<'buffer> {
+    pub fn new(buffer: &'buffer SceneBuffer) -> Self {
+        let mut result = Self {
+            buffer: buffer,
+            screen_iterator: None
+        };
+        result.screen_iterator = Some(result.buffer.get_screen());
+        result
+    }
+}
+
+impl<'buffer> Iterator for SceneBufferIterator {
+    type Item = (Point2Int, Option<Color>);
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(mut iterator) = self.screen_iterator {
+            if let Some(next_coord) = iterator.next() {
+                self.buffer.get_pixel_value(next_coord).unwrap("Unexpectec SceneBuffer error");
+            } else {
+                None
+            }
+        } else {
+            panic!("SceneBufferIterator wasn't initialized correctly");
+        }
+    }
+}
+
 pub trait WorldViewTrait: Scene + SceneBuffer {
 
+}
+
+#[derive(Debug)]
+pub enum BasicScreenBufferError {
+    BufferNotCorrectSize
+}
+
+pub struct BasicScreenBuffer {
+    screen: Screen,
+    buffer: Arc<Mutex<Vec<Option<Color>>>>,
+}
+
+impl BasicScreenBuffer {
+    pub fn new(screen: Screen) -> Self {
+        let buffer: Vec<Option<Color>> = Vec::with_capacity(screen.get_pixel_count() as usize);
+        Self {
+            screen: screen,
+            buffer: Arc::new(Mutex::new(buffer))
+        }
+    }
+
+    pub fn with_buffer(screen: Screen, input_buffer: Vec<Option<Color>>) -> Result<Self, BasicScreenBufferError> {
+        if input_buffer.len() == screen.get_pixel_count() as usize {
+            Ok(Self {
+                screen: screen,
+                buffer: Arc::new(Mutex::new(buffer))
+            })
+        } else {
+            Err(BasicScreenBufferError::BufferNotCorrectSize)
+        }
+    }
+}
+
+impl SceneBuffer for BasicScreenBuffer {
+    fn set_pixel_value(&self, pixel: Point2Int, color: &Color) -> Result<(), SceneBufferError>
+    {
+
+    }
+
+    fn accumulate_pixel_value(&self, pixel: Point2Int, color: &Color) -> Result<(), SceneBufferError>
+    {
+
+    }
+
+    fn reset_pixel(&self, pixel: Point2Int) -> Result<(), SceneBufferError>
+    {
+
+    }
+
+    fn get_pixel_value(&self, pixel: Point2Int) -> Result<Option<Color>, SceneBufferError>
+    {
+
+    }
+
+    fn get_screen(&self) -> &Screen
+    {
+        
+    }
 }
 
 pub struct WorldView<WorldT> {
@@ -191,6 +284,10 @@ impl<WorldT> SceneBuffer for WorldView<WorldT>
         } else {
             Err(SceneBufferError::InvalidInputCoord)
         }
+    }
+
+    fn get_screen(&self) -> &Screen {
+        self.view.get_screen()
     }
 }
 

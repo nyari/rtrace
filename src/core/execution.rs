@@ -11,28 +11,24 @@ pub trait RenderingTask: Send + Sync {
 }
 
 pub trait RenderingTaskProducer: Send + Sync {
-    fn create_task_iterator(&self) -> Box<ThreadSafeIterator<Item=Box<RenderingTask>>>;
+    fn create_task_iterator(self: Box<Self>) -> Box<ThreadSafeIterator<Item=Box<RenderingTask>>>;
 }
 
 pub struct OrderedTaskProducers {
-    producers: Mutex<Option<Vec<Box<RenderingTaskProducer>>>>
+    producers: Option<Vec<Box<RenderingTaskProducer>>>
 }
 
 impl OrderedTaskProducers {
-    pub fn new(producers: Vec<Box<RenderingTaskProducer>>) -> Self {
-        Self {
-            producers: Mutex::new(Some(producers))
-        }
+    pub fn new(producers: Vec<Box<RenderingTaskProducer>>) -> Box<RenderingTaskProducer> {
+        Box::new(Self {
+            producers: Some(producers)
+        })
     }
 }
 
 impl RenderingTaskProducer for OrderedTaskProducers {
-    fn create_task_iterator(&self) -> Box<ThreadSafeIterator<Item=Box<RenderingTask>>> {
-        if let Ok(ref mut producers_mut_ref) = self.producers.lock() {
-            Box::new(OrderedTaskIterator::new(producers_mut_ref.take().expect("OrderedTaskProducers create_task_iterator for the second time")))
-        } else {
-            panic!("Mutex lock error inside OrderedTaskIterator");
-        }
+    fn create_task_iterator(mut self: Box<Self>) -> Box<ThreadSafeIterator<Item=Box<RenderingTask>>> {
+        Box::new(OrderedTaskIterator::new(self.producers.take().expect("OrderedTaskProducers should have not been created empty")))
     }
 }
 

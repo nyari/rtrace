@@ -7,6 +7,7 @@ extern crate float_cmp as flcmp;
 extern crate num;
 extern crate num_traits as numt;
 extern crate uuid;
+extern crate rand;
 
 pub mod defs;
 pub mod tools;

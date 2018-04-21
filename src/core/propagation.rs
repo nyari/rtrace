@@ -110,8 +110,8 @@ impl<'intersection> RayPropagator<'intersection> {
         euler_rotation * self.intersection.get_normal_vector()
     }
 
-    pub fn get_diffuse_direction_ray(&self, angle_to_normal: FloatType, angle_to_view_direction: FloatType) -> Result<Ray, RayPropagatorError> {
-        Ray::continue_ray_from_intersection(self.intersection, self.get_diffuse_direction_vector(angle_to_normal, angle_to_view_direction)).map_err(|ray_error| {
+    pub fn get_diffuse_direction_ray(&self, pitch: FloatType, yaw: FloatType) -> Result<Ray, RayPropagatorError> {
+        Ray::continue_ray_from_intersection(self.intersection, self.get_diffuse_direction_vector(pitch, yaw)).map_err(|ray_error| {
             match ray_error {
                 RayError::DepthLimitReached => RayPropagatorError::RayRelated(ray_error),
                 _ => panic!("RayPropagator encountered unhandleable RayError")

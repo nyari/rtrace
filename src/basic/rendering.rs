@@ -7,15 +7,15 @@ pub struct WorldViewTaskProducer {
 }
 
 impl WorldViewTaskProducer {
-    pub fn new(worldview: Arc<WorldViewTrait>) -> Self {
-        Self {
+    pub fn new(worldview: Arc<WorldViewTrait>) -> Box<RenderingTaskProducer> {
+        Box::new(Self {
             worldview: worldview
-        }
+        })
     }   
 }
 
 impl RenderingTaskProducer for WorldViewTaskProducer {
-    fn create_task_iterator(&self) -> Box<ThreadSafeIterator<Item=Box<RenderingTask>>> {
+    fn create_task_iterator(self: Box<Self>) -> Box<ThreadSafeIterator<Item=Box<RenderingTask>>> {
         Box::new(WorldViewTaskIterator::new(Arc::clone(&self.worldview)))
     }
 }
