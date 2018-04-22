@@ -3,7 +3,9 @@ use std::sync::{Arc, Mutex};
 use std;
 
 use defs::{IntType, FloatType, Point2Int};
-use core::{WorldViewTrait, Color, Screen, RayIntersection, RayPropagator};
+use core::{WorldViewTrait, Color, Screen, ScreenIterator, RayIntersection, 
+           RayPropagator, BasicSceneBuffer, SceneBuffer,
+           RenderingTask, RenderingTaskProducer, ThreadSafeIterator};
 
 use uuid::{Uuid};
 use rand;
@@ -22,6 +24,13 @@ impl UuidColor {
             color: color
         }
     }
+}
+
+#[derive(Debug)]
+pub enum GlobalIlluminationShaderError {
+    InvalidCoord,
+    MutexLockError,
+    NotExistingModelId
 }
 
 struct GlobalIlluminationShaderState {
@@ -46,7 +55,7 @@ impl GlobalIlluminationShaderState {
 pub struct GlobalIlluminationShader {
     worldview: Arc<WorldViewTrait>,
     sampling_size: IntType,
-    maximum_yaw_angle: FloatType,
+    maximum_pitch_angle: FloatType,
     state: Mutex<GlobalIlluminationShaderState>
 }
 
@@ -58,12 +67,12 @@ impl GlobalIlluminationShader {
         Self {
             worldview: worldview,
             sampling_size: sampling_size,
-            maximum_yaw_angle: max_yaw_angle,
+            maximum_pitch_angle: max_yaw_angle,
             state: Mutex::new(GlobalIlluminationShaderState::new(buffer))
         }
     }
 
-    fn get_screen(&self) -> &Screen {
+    pub fn get_screen(&self) -> &Screen {
         self.worldview.get_view().get_screen()
     }
 
@@ -75,13 +84,15 @@ impl GlobalIlluminationShader {
         let propagator = RayPropagator::new(intersection);
         let mut result: Option<Color> = None;
         let mut random_generator = rand::thread_rng();
+        let mut actually_sampled = 0;
         for _counter in 0..self.sampling_size {
-            let yaw: FloatType = self.maximum_yaw_angle * random_generator.gen::<FloatType>();
-            let pitch: FloatType = 2.0 * std::f64::consts::PI * random_generator.gen::<FloatType>();
+            let pitch: FloatType = self.maximum_pitch_angle * random_generator.gen::<FloatType>();
+            let yaw: FloatType = 2.0 * std::f64::consts::PI * random_generator.gen::<FloatType>();
             if let Ok(ray) = propagator.get_diffuse_direction_ray(pitch, yaw) {
                 if let Some(new_color) = self.worldview.get_ray_caster().cast_ray(&ray) {
                     if let Some(ref mut accumulated_color) = result{ 
                         *accumulated_color += new_color;
+                        actually_sampled += 1;
                     } else {
                         result = Some(new_color)
                     }
@@ -89,81 +100,151 @@ impl GlobalIlluminationShader {
             }
         }
 
-        result
-    }
-
-    pub fn new_calculate_uuid_color_for_pixel(&self, coord: &Point2Int) -> Option<UuidColor> {
-        if let Ok(intersection) = self.worldview.get_pixel_intersection(*coord) {
-            if let Some(model_identifier) = intersection.get_model_identifier() {
-                if let Some(resulting_color) = self.calculate_global_color_for_intersection(&intersection) {
-                    Some(UuidColor::new(*model_identifier, resulting_color))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        } else {
-            None
+        match result {
+            Some(color) => Some(color.mul_scalar(&(actually_sampled as FloatType).recip())),
+            None => None
         }
     }
 
-    pub fn set_to_buffer(&self, coord: &Point2Int, entry: UuidColor) {
-        if let Ok(mut unlocked_state) = self.state.lock() {
-            unlocked_state.set_color(self.to_buffer_index(coord), entry);
+    pub fn new_calculate_uuid_color_for_pixel(&self, coord: &Point2Int) -> Result<Option<UuidColor>, GlobalIlluminationShaderError> {
+        if let Ok(intersection) = self.worldview.get_pixel_intersection(*coord) {
+            if let Some(model_identifier) = intersection.get_model_identifier() {
+                if let Some(resulting_color) = self.calculate_global_color_for_intersection(&intersection) {
+                    Ok(Some(UuidColor::new(*model_identifier, resulting_color)))
+                } else {
+                    Ok(None)
+                }
+            } else {
+                Err(GlobalIlluminationShaderError::MutexLockError)
+            }
         } else {
-            panic!("Mutex lock error inside GlobalIlluminationShader");
+            Err(GlobalIlluminationShaderError::InvalidCoord)
+        }
+    }
+
+    pub fn set_to_buffer(&self, coord: &Point2Int, entry: UuidColor) -> Result<(), GlobalIlluminationShaderError> {
+        if let Ok(ref mut unlocked_state) = self.state.lock() {
+            unlocked_state.set_color(self.to_buffer_index(coord), entry);
+            Ok(())
+        } else {
+            Err(GlobalIlluminationShaderError::MutexLockError)
+        }
+    }
+
+    pub fn get_entire_buffer(&self) -> Result<Box<SceneBuffer>, GlobalIlluminationShaderError> {
+        if let Ok(unlocked_state) = self.state.lock() {
+            let transformed_buffer = unlocked_state.buffer.iter()
+                                                          .map(|&uuid_color_option| uuid_color_option.map(|uc| uc.color))
+                                                          .collect();
+            Ok(Box::new(BasicSceneBuffer::with_buffer(*self.worldview.get_screen(), transformed_buffer).unwrap()))
+        } else {
+            Err(GlobalIlluminationShaderError::MutexLockError)
+        }
+    }
+
+    pub fn get_model_buffer(&self, model_unid: Uuid) -> Result<Box<SceneBuffer>, GlobalIlluminationShaderError> {
+        if let Ok(unlocked_state) = self.state.lock() {
+            let transformed_buffer = unlocked_state.buffer.iter()
+                                                          .map(|&uuid_color_option| {
+                                                              match uuid_color_option {
+                                                                  Some(uuidcolor) => {
+                                                                      if model_unid == uuidcolor.id {
+                                                                          Some(uuidcolor.color)
+                                                                      } else {
+                                                                          None
+                                                                      }
+                                                                  },
+                                                                  None => None,
+                                                              }
+                                                          })
+                                                          .collect();
+            Ok(Box::new(BasicSceneBuffer::with_buffer(*self.worldview.get_screen(), transformed_buffer).unwrap()))
+        } else {
+            Err(GlobalIlluminationShaderError::MutexLockError)
+        }
+    }
+
+    pub fn get_all_model_ids_on_buffer(&self) -> Result<HashSet<Uuid>, GlobalIlluminationShaderError> {
+        if let Ok(unlocked_state) = self.state.lock() {
+            Ok(unlocked_state.visible.clone())
+        } else {
+            Err(GlobalIlluminationShaderError::MutexLockError)
         }
     }
 }
 
-// impl SceneBuffer for GlobalIlluminationShader {
-//     fn set_pixel_value(&self, pixel: Point2Int, color: &Color) -> Result<(), SceneBufferError> {
-//         let buffer_index = self.to_buffer_index();
-//         if let Ok(ref mut unlocked_buffer) = self.output_buffer.lock() {
-//             unlocked_buffer.get_mut().unwrap() = Some(*color);
-//             Ok(())
-//         } else {
-//             Err(SceneBufferError::MutexLockError)
-//         }
-//     }
+pub struct GlobalIlluminationShaderTaskProducer {
+    shader: Arc<GlobalIlluminationShader>
+}
 
-//     fn accumulate_pixel_value(&self, pixel: Point2Int, color: &Color) -> Result<(), SceneBufferError>
-//     {
-//         let buffer_index = self.to_buffer_index();
-//         if let Ok(ref mut unlocked_buffer) = self.output_buffer.lock() {
-//             let mut pixel_in_question = unlocked_buffer.get_mut().unwrap();
-//             if Some(ref mut original_color) = pixel_in_question {
-//                 original_color += color;
-//             } else {
-//                 pixel_in_question = Some(*color);
-//             }
-//             Ok(())
-//         } else {
-//             Err(SceneBufferError::MutexLockError)
-//         }
-//     }
+impl GlobalIlluminationShaderTaskProducer {
+    pub fn new(shader: Arc<GlobalIlluminationShader>) -> Box<RenderingTaskProducer> {
+        Box::new(Self {
+            shader: shader
+        })
+    }   
+}
 
-//     fn reset_pixel(&self, pixel: Point2Int) -> Result<(), SceneBufferError> {
-//         let buffer_index = self.to_buffer_index();
-//         if let Ok(ref mut unlocked_buffer) = self.output_buffer.lock() {
-//             unlocked_buffer.get_mut().unwrap() = None;
-//             Ok(())
-//         } else {
-//             Err(SceneBufferError::MutexLockError)
-//         }
-//     }
+impl RenderingTaskProducer for GlobalIlluminationShaderTaskProducer {
+    fn create_task_iterator(self: Box<Self>) -> Box<ThreadSafeIterator<Item=Box<RenderingTask>>> {
+        Box::new(GlobalIlluminationShaderTaskIterator::new(Arc::clone(&self.shader)))
+    }
+}
 
-//     fn get_pixel_value(&self, pixel: Point2Int) -> Result<Option<Color>, SceneBufferError> {
-//         let buffer_index = self.to_buffer_index();
-//         if let Ok(ref mut unlocked_buffer) = self.output_buffer.lock() {
-//             Ok(unlocked_buffer.get().unwrap())
-//         } else {
-//             Err(SceneBufferError::MutexLockError)
-//         }
-//     }
+pub struct GlobalIlluminationShaderTaskIterator {
+    shader: Arc<GlobalIlluminationShader>,
+    screen_iterator: Mutex<ScreenIterator>
+}
 
-//     fn get_screen(&self) -> &Screen {
-//         self.worldview.get_view().get_screen()
-//     }
-// }
+impl GlobalIlluminationShaderTaskIterator {
+    pub fn new(shader: Arc<GlobalIlluminationShader>) -> Self {     
+        let screen_iterator = ScreenIterator::new(shader.get_screen());
+        Self {
+            shader: shader,
+            screen_iterator: Mutex::new(screen_iterator),
+        }
+    }
+
+    fn create_task(&self, coord: Point2Int) -> Box<GlobalIlluminationShaderTask> {
+        Box::new(GlobalIlluminationShaderTask::new(Arc::clone(&self.shader), coord))
+    }
+}
+
+impl ThreadSafeIterator for GlobalIlluminationShaderTaskIterator {
+    type Item = Box<RenderingTask>;
+
+    fn next(&self) -> Option<Box<RenderingTask>> {
+        if let Ok(ref mut unlocked_screen_iterator) = self.screen_iterator.lock() { 
+            match unlocked_screen_iterator.next() {
+                Some(coord) => Some(self.create_task(coord)),
+                None => None
+            }
+        } else {
+            panic!("Mutex lock error inside WorldViewTaskIterator");
+        }
+    }
+}
+
+pub struct GlobalIlluminationShaderTask {
+    shader: Arc<GlobalIlluminationShader>,
+    coord: Point2Int
+}
+
+impl GlobalIlluminationShaderTask {
+    pub fn new(shader: Arc<GlobalIlluminationShader>, coord: Point2Int) -> Self {
+        Self {
+            shader: shader,
+            coord: coord
+        }
+    }
+}
+
+impl RenderingTask for GlobalIlluminationShaderTask {
+    fn execute(self: Box<Self>) {
+        match self.shader.new_calculate_uuid_color_for_pixel(&self.coord) {
+            Ok(Some(uuidcolor)) => self.shader.set_to_buffer(&self.coord, uuidcolor).expect("WorldViewTask: There should be no buffer error$"),
+            Ok(_) => (),
+            Err(error) => panic!("WorldViewTask: Unrecoverable SceneError: {:?}", error)
+        }
+    }
+}

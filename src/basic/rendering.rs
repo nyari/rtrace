@@ -1,4 +1,4 @@
-use core::{RenderingTaskProducer, RenderingTask, SceneError, Screen, WorldViewTrait, ThreadSafeIterator};
+use core::{RenderingTaskProducer, RenderingTask, Screen, SceneError, WorldViewTrait, ThreadSafeIterator};
 use defs::{Point2Int, IntType};
 use std::sync::{Arc, Mutex};
 
@@ -78,7 +78,7 @@ impl WorldViewTask {
 impl RenderingTask for WorldViewTask {
     fn execute(self: Box<Self>) {
         match self.worldview.get_pixel_color(self.coord) {
-            Ok(color) => self.worldview.accumulate_pixel_value(self.coord, &color).expect("WorldViewTask: There should be no buffer error$"),
+            Ok(color) => self.worldview.accumulate_pixel_value(self.coord, &color).unwrap(),
             Err(SceneError::NothingIntersected) => (),
             Err(error) => panic!("WorldViewTask: Unrecoverable SceneError: {:?}", error)
         }

@@ -9,6 +9,7 @@ pub mod view;
 pub mod propagation;
 pub mod worldview;
 pub mod execution;
+pub mod scene;
 
 pub use self::model::*;
 pub use self::ray::*;
@@ -22,3 +23,4 @@ pub use self::view::*;
 pub use self::propagation::*;
 pub use self::worldview::*;
 pub use self::execution::*;
+pub use self::scene::*;

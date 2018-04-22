@@ -150,14 +150,14 @@ impl Screen {
     }
 }
 
-pub struct ScreenIterator<'screen> {
+pub struct ScreenIterator {
     state: IntType,
-    screen: &'screen Screen,
+    screen: Screen,
 }
 
-impl<'screen> ScreenIterator<'screen> {
-    pub fn new(screen: &'screen Screen) -> Self {
-        Self {  screen: screen,
+impl ScreenIterator {
+    pub fn new(screen: &Screen) -> Self {
+        Self {  screen: *screen,
                 state: 0}
     }
 
@@ -169,7 +169,7 @@ impl<'screen> ScreenIterator<'screen> {
     }
 }
 
-impl<'screen> Iterator for ScreenIterator<'screen> {
+impl Iterator for ScreenIterator {
     type Item = Point2Int;
     fn next(&mut self) -> Option<Point2Int> {
         let result = self.get_screen_coord(&self.state);
@@ -252,7 +252,7 @@ impl View {
     }
 
     pub fn get_screen_coord_to_world_point(&self, point: &Point3) -> Option<Point2Int> {
-        let test_ray = Ray::new(*point, (self.eye.position - point));
+        let test_ray = Ray::new(*point, self.eye.position - point);
         self.screen.get_intersected_pixel(&test_ray)
     }
 
