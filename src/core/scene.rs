@@ -30,18 +30,21 @@ pub enum SceneBufferLayering {
     Over
 }
 
-pub trait SceneBuffer: Send + Sync { //Internally mutable (Mutex), thread safe
-    fn set_pixel_value(&self, pixel: Point2Int, color: &Color) -> Result<(), SceneBufferError>;
-    fn accumulate_pixel_value(&self, pixel: Point2Int, color: &Color) -> Result<(), SceneBufferError>;
-    fn reset_pixel(&self, pixel: Point2Int) -> Result<(), SceneBufferError>;
+pub trait ImmutableSceneBuffer: Send + Sync {
     fn get_pixel_value(&self, pixel: Point2Int) -> Result<Option<Color>, SceneBufferError>;
     fn get_screen(&self) -> &Screen;
 
-    fn is_same_size_buffer(&self, rhs: &SceneBuffer) -> bool {
+    fn is_same_size_buffer(&self, rhs: &ImmutableSceneBuffer) -> bool {
         self.get_screen().get_resolution() == rhs.get_screen().get_resolution()
     }
+}
 
-    fn layer_buffer(&self, place: SceneBufferLayering, rhs: &SceneBuffer) -> Result<(), SceneBufferError> {
+pub trait MutableSceneBuffer: ImmutableSceneBuffer +  Send + Sync { //Internally mutable (Mutex), thread safe
+    fn set_pixel_value(&self, pixel: Point2Int, color: &Color) -> Result<(), SceneBufferError>;
+    fn accumulate_pixel_value(&self, pixel: Point2Int, color: &Color) -> Result<(), SceneBufferError>;
+    fn reset_pixel(&self, pixel: Point2Int) -> Result<(), SceneBufferError>;
+
+    fn layer_buffer(&self, place: SceneBufferLayering, rhs: &ImmutableSceneBuffer) -> Result<(), SceneBufferError> {
         let layerer = |self_color_option: Option<Color>, rhs_color_option: Option<Color>| {
             match place {
                 SceneBufferLayering::Under => {
@@ -83,7 +86,7 @@ pub trait SceneBuffer: Send + Sync { //Internally mutable (Mutex), thread safe
         }
     }
 
-    fn combine_buffer(&self, rhs: &SceneBuffer) -> Result<(), SceneBufferError> {
+    fn combine_buffer(&self, rhs: &ImmutableSceneBuffer) -> Result<(), SceneBufferError> {
         if self.is_same_size_buffer(rhs) {
             for (pixel, rhs_color_option) in SceneBufferIterator::new(rhs) {
                 match rhs_color_option {
@@ -105,13 +108,18 @@ pub trait SceneBuffer: Send + Sync { //Internally mutable (Mutex), thread safe
 }
 
 
+pub trait SceneBuffer: ImmutableSceneBuffer + MutableSceneBuffer + Send + Sync {
+
+}
+
+
 pub struct SceneBufferIterator<'buffer> {
-    buffer: &'buffer SceneBuffer,
+    buffer: &'buffer ImmutableSceneBuffer,
     screen_iterator: ScreenIterator
 }
 
 impl<'buffer> SceneBufferIterator<'buffer> {
-    pub fn new(buffer: &'buffer SceneBuffer) -> Self {
+    pub fn new(buffer: &'buffer ImmutableSceneBuffer) -> Self {
         Self {
             buffer: buffer,
             screen_iterator: ScreenIterator::new(buffer.get_screen())
@@ -122,10 +130,9 @@ impl<'buffer> SceneBufferIterator<'buffer> {
 impl<'buffer> Iterator for SceneBufferIterator<'buffer> {
     type Item = (Point2Int, Option<Color>);
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(next_coord) = self.screen_iterator.next() {
-            Some((next_coord, self.buffer.get_pixel_value(next_coord).unwrap()))
-        } else {
-            None
+        match self.screen_iterator.next() {
+            Some(next_coord) => Some((next_coord, self.buffer.get_pixel_value(next_coord).unwrap())),
+            None => None
         }
     }
 }
@@ -173,7 +180,28 @@ impl BasicSceneBuffer {
     }
 }
 
-impl SceneBuffer for BasicSceneBuffer {
+
+impl ImmutableSceneBuffer for BasicSceneBuffer {
+    fn get_pixel_value(&self, pixel: Point2Int) -> Result<Option<Color>, SceneBufferError> {
+        if let Some(index) = self.map_pixel_to_buffer(pixel) {
+            if let Ok(ref mut result_buffer_acessor) = self.buffer.lock() {
+                let buffer_item = result_buffer_acessor.get_mut(index).unwrap();
+                Ok(*buffer_item)
+            } else {
+                Err(SceneBufferError::MutexLockError)
+            }
+        } else {
+            Err(SceneBufferError::InvalidInputCoord)
+        }
+    }
+
+    fn get_screen(&self) -> &Screen {
+        &self.screen        
+    }
+}
+
+
+impl MutableSceneBuffer for BasicSceneBuffer {
     fn set_pixel_value(&self, pixel: Point2Int, color: &Color) -> Result<(), SceneBufferError> {
         if let Some(index) = self.map_pixel_to_buffer(pixel) {
             if let Ok(ref mut result_buffer_acessor) = self.buffer.lock() {
@@ -219,21 +247,30 @@ impl SceneBuffer for BasicSceneBuffer {
             Err(SceneBufferError::InvalidInputCoord)
         }
     }
+}
 
-    fn get_pixel_value(&self, pixel: Point2Int) -> Result<Option<Color>, SceneBufferError> {
-        if let Some(index) = self.map_pixel_to_buffer(pixel) {
-            if let Ok(ref mut result_buffer_acessor) = self.buffer.lock() {
-                let buffer_item = result_buffer_acessor.get_mut(index).unwrap();
-                Ok(*buffer_item)
-            } else {
-                Err(SceneBufferError::MutexLockError)
-            }
-        } else {
-            Err(SceneBufferError::InvalidInputCoord)
+impl SceneBuffer for BasicSceneBuffer {
+
+}
+
+pub struct ImmutableSceneBufferWrapper<'buffer> {
+    buffer: &'buffer SceneBuffer
+}
+
+impl<'buffer> ImmutableSceneBufferWrapper<'buffer> {
+    pub fn new(buffer: &'buffer SceneBuffer) -> Self {
+        Self {
+            buffer: buffer
         }
+    }
+}
+
+impl<'buffer> ImmutableSceneBuffer for ImmutableSceneBufferWrapper<'buffer> {
+    fn get_pixel_value(&self, pixel: Point2Int) -> Result<Option<Color>, SceneBufferError> {
+        self.buffer.get_pixel_value(pixel)
     }
 
     fn get_screen(&self) -> &Screen {
-        &self.screen        
+        self.buffer.get_screen()
     }
 }

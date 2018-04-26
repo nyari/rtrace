@@ -1,6 +1,6 @@
 use defs::{Point2Int};
 use core::{RayCaster, IlluminationCaster, View, Color, RayIntersection, Screen, Ray, LightIntersection, 
-           Scene, SceneError, BasicSceneBuffer, SceneBuffer, SceneBufferError};
+           Scene, SceneError, BasicSceneBuffer, SceneBuffer, MutableSceneBuffer, ImmutableSceneBuffer, SceneBufferError};
 use std::sync::{Arc};
 
 
@@ -88,7 +88,19 @@ impl<WorldT> Scene for WorldView<WorldT>
     }
 }
 
-impl<WorldT> SceneBuffer for WorldView<WorldT>
+impl<WorldT> ImmutableSceneBuffer for WorldView<WorldT>
+    where WorldT: RayCaster + IlluminationCaster + Send + Sync
+{
+    fn get_pixel_value(&self, pixel: Point2Int) -> Result<Option<Color>, SceneBufferError> {
+        self.result_buffer.get_pixel_value(pixel)
+    }
+
+    fn get_screen(&self) -> &Screen {
+        self.result_buffer.get_screen()
+    }
+}
+
+impl<WorldT> MutableSceneBuffer for WorldView<WorldT>
     where WorldT: RayCaster + IlluminationCaster + Send + Sync
 {
     fn set_pixel_value(&self, pixel: Point2Int, color: &Color) -> Result<(), SceneBufferError> {
@@ -102,14 +114,11 @@ impl<WorldT> SceneBuffer for WorldView<WorldT>
     fn reset_pixel(&self, pixel: Point2Int) -> Result<(), SceneBufferError> {
         self.result_buffer.reset_pixel(pixel)
     }
+}
 
-    fn get_pixel_value(&self, pixel: Point2Int) -> Result<Option<Color>, SceneBufferError> {
-        self.result_buffer.get_pixel_value(pixel)
-    }
+impl<WorldT> SceneBuffer for WorldView<WorldT>
+    where WorldT: RayCaster + IlluminationCaster + Send + Sync {
 
-    fn get_screen(&self) -> &Screen {
-        self.result_buffer.get_screen()
-    }
 }
 
 impl<WorldT> WorldViewTrait for WorldView<WorldT>

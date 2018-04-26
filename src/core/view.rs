@@ -64,7 +64,7 @@ impl Screen {
         self.horizontal_resolution * self.vertical_resolution
     }
 
-    fn check_pixel_bounds(&self, coord: &Point2Int) -> bool {
+    pub fn check_pixel_bounds(&self, coord: &Point2Int) -> bool {
         (0 <= coord.x && coord.x < self.horizontal_resolution) && (0 <= coord.y && coord.y < self.vertical_resolution)
     }
 
