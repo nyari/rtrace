@@ -81,28 +81,35 @@ impl GlobalIlluminationShader {
     }
 
     fn calculate_global_color_for_intersection(&self, intersection: &RayIntersection) -> Option<Color> {
-        let propagator = RayPropagator::new(intersection);
-        let mut result: Option<Color> = None;
-        let mut random_generator = rand::thread_rng();
-        let mut actually_sampled = 0;
-        for _counter in 0..self.sampling_size {
-            let pitch: FloatType = self.maximum_pitch_angle * random_generator.gen::<FloatType>();
-            let yaw: FloatType = 2.0 * std::f64::consts::PI * random_generator.gen::<FloatType>();
-            if let Ok(ray) = propagator.get_diffuse_direction_ray(pitch, yaw) {
-                if let Some(new_color) = self.worldview.get_ray_caster().cast_ray(&ray) {
-                    if let Some(ref mut accumulated_color) = result{ 
-                        *accumulated_color += new_color;
-                        actually_sampled += 1;
-                    } else {
-                        result = Some(new_color)
+        if let Some(diffuse_color) = intersection.get_material().get_diffuse_color() {
+            let propagator = RayPropagator::new(intersection);
+            let mut result: Option<Color> = None;
+            let mut random_generator = rand::thread_rng();
+            let mut actually_sampled = 0;
+            for _counter in 0..self.sampling_size {
+                let pitch: FloatType = self.maximum_pitch_angle * random_generator.gen::<FloatType>();
+                let yaw: FloatType = 2.0 * std::f64::consts::PI * random_generator.gen::<FloatType>();
+                if let Ok(ray) = propagator.get_diffuse_direction_ray(pitch, yaw) {
+                    if let Some(new_color) = self.worldview.get_ray_caster().cast_ray(&ray) {
+                        if let Some(ref mut accumulated_color) = result{ 
+                            *accumulated_color += new_color;
+                            actually_sampled += 1;
+                        } else {
+                            result = Some(new_color)
+                        }
                     }
                 }
             }
-        }
 
-        match result {
-            Some(color) => Some(color.mul_scalar(&(actually_sampled as FloatType).recip())),
-            None => None
+            match result {
+                Some(color) => {
+                    let melded_color = color * *diffuse_color;
+                    Some(melded_color.mul_scalar(&(actually_sampled as FloatType).recip()))
+                },
+                None => None
+            }
+        } else {
+            None
         }
     }
 
