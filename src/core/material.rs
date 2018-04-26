@@ -132,6 +132,17 @@ impl Material {
                refractive: true}
     }
 
+    pub fn new_light_source(diffuse: Color, ambient: Option<Color>) -> Self {
+        Self {
+            diffuse: Some(diffuse),
+            ambient: ambient,
+            specular: None,
+            fresnel: Some(FresnelData::new(FresnelIndex::one(), FresnelIndex::one())),
+            reflective: false,
+            refractive: true
+        }
+    }
+
     pub fn get_ambient_color(&self) -> Option<&Color> {
         self.ambient.as_ref()
     }
@@ -164,7 +175,7 @@ impl Material {
         if self.is_transparent() {
             match self.diffuse {
                 None => Some(Color::one()),
-                Some(color) => Some(Color::one() - color)
+                Some(color) => Some(color)
             }
         } else {
             None
