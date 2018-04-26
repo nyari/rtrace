@@ -122,7 +122,7 @@ impl GlobalIlluminationShader {
                     Ok(None)
                 }
             } else {
-                Err(GlobalIlluminationShaderError::MutexLockError)
+                Err(GlobalIlluminationShaderError::NotExistingModelId)
             }
         } else {
             Err(GlobalIlluminationShaderError::InvalidCoord)
@@ -251,6 +251,7 @@ impl RenderingTask for GlobalIlluminationShaderTask {
         match self.shader.new_calculate_uuid_color_for_pixel(&self.coord) {
             Ok(Some(uuidcolor)) => self.shader.set_to_buffer(&self.coord, uuidcolor).expect("WorldViewTask: There should be no buffer error$"),
             Ok(_) => (),
+            Err(GlobalIlluminationShaderError::NotExistingModelId) => (),
             Err(error) => panic!("WorldViewTask: Unrecoverable SceneError: {:?}", error)
         }
     }
