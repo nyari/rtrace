@@ -21,7 +21,7 @@ impl SimpleColorCalculator {
             let specular_color = Material::get_specular_illumination(intersection, light_intersection);
             
             acc + specular_color.unwrap_or(Color::zero()) + diffuse_color.unwrap_or(Color::zero())
-        }).normalized()
+        })
     }
 
     fn get_reflected_color(&self, intersection: &RayIntersection, ray_caster: &RayCaster) -> Color {
