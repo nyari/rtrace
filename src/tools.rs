@@ -18,15 +18,15 @@ pub trait CompareWithTolerance<T: Float> {
 
 impl CompareWithTolerance<FloatType> for FloatType {
     fn compare_eps(&self, rhs: &FloatType) -> Ordering {
-        self.approx_cmp(&rhs, FLOAT_ULPS_TOLERANCE)
+        self.approx_cmp_ulps(&rhs, FLOAT_ULPS_TOLERANCE)
     }
 
     fn less_eps(&self, rhs: &FloatType) -> bool {
-        self.approx_cmp(&rhs, FLOAT_ULPS_TOLERANCE) == Ordering::Less
+        self.approx_cmp_ulps(&rhs, FLOAT_ULPS_TOLERANCE) == Ordering::Less
     }
 
     fn less_eq_eps(&self, rhs: &FloatType) -> bool {
-        match self.approx_cmp(&rhs, FLOAT_ULPS_TOLERANCE) {
+        match self.approx_cmp_ulps(&rhs, FLOAT_ULPS_TOLERANCE) {
             Ordering::Less => true,
             Ordering::Equal => true,
             _ => false,
@@ -34,15 +34,15 @@ impl CompareWithTolerance<FloatType> for FloatType {
     }
 
     fn equal_eps(&self, rhs: &FloatType) -> bool {
-        self.approx_cmp(&rhs, FLOAT_ULPS_TOLERANCE) == Ordering::Equal
+        self.approx_cmp_ulps(&rhs, FLOAT_ULPS_TOLERANCE) == Ordering::Equal
     }
 
     fn greater_eps(&self, rhs: &FloatType) -> bool {
-        self.approx_cmp(&rhs, FLOAT_ULPS_TOLERANCE) == Ordering::Greater
+        self.approx_cmp_ulps(&rhs, FLOAT_ULPS_TOLERANCE) == Ordering::Greater
     }
 
     fn greater_eq_eps(&self, rhs: &FloatType) -> bool {
-        match self.approx_cmp(&rhs, FLOAT_ULPS_TOLERANCE) {
+        match self.approx_cmp_ulps(&rhs, FLOAT_ULPS_TOLERANCE) {
             Ordering::Greater => true,
             Ordering::Equal => true,
             _ => false,
@@ -50,7 +50,7 @@ impl CompareWithTolerance<FloatType> for FloatType {
     }
 
     fn near_zero_eps(&self) -> bool {
-        self.approx_cmp(&0.0, FLOAT_ULPS_TOLERANCE) == Ordering::Equal
+        self.approx_cmp_ulps(&0.0, FLOAT_ULPS_TOLERANCE) == Ordering::Equal
     }
 }
 
