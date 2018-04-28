@@ -3,9 +3,9 @@ use std::sync::{Arc, Mutex};
 use std;
 
 use defs::{IntType, FloatType, Point2Int};
-use core::{WorldViewTrait, Color, Screen, ScreenIterator, RayIntersection, 
-           RayPropagator, BasicSceneBuffer, SceneBuffer,
-           RenderingTask, RenderingTaskProducer, ThreadSafeIterator};
+use core::{WorldViewTrait, Color, Screen, ScreenIterator, RayIntersection, Material,
+           RayPropagator, BasicSceneBuffer, SceneBuffer, RayPropagatorError,
+           RenderingTask, RenderingTaskProducer, ThreadSafeIterator, Ray, RayError};
 
 use uuid::{Uuid};
 use rand;
@@ -113,16 +113,88 @@ impl GlobalIlluminationShader {
         }
     }
 
+    fn trace_reflective_intersection(&self, intersection: &RayIntersection) -> Option<Color> {
+        let material = intersection.get_material();
+        if material.is_reflective() {
+            let propagator = RayPropagator::new(intersection);
+            match propagator.get_mirrored_ray() {
+                Ok(mirror_ray) => {
+                    if let Some(color) = self.trace_ray_and_calculate_color(&mirror_ray) {
+                        match Material::get_fresnel_reflection(intersection) {
+                            Some(fresnel_color) => Some(fresnel_color * color),
+                            None => None
+                        }
+                    } else {
+                        None
+                    }
+                },
+                Err(RayPropagatorError::RayRelated(RayError::DepthLimitReached)) => None,
+                _ => panic!("Unhandleable ray propagation error")
+            }
+        } else {
+            None
+        }
+    }
+
+    fn trace_refractive_intersection(&self, intersection: &RayIntersection) -> Option<Color> {
+        let material = intersection.get_material();
+        if material.is_refractive() {
+            let propagator = RayPropagator::new(intersection);
+            match propagator.get_refracted_ray() {
+                Ok(refracted_ray) => {
+                    if let Some(color) = self.trace_ray_and_calculate_color(&refracted_ray) {
+                        match Material::get_fresnel_refraction(intersection) {
+                            Some(fresnel_color) => Some(fresnel_color * color),
+                            None => None
+                        }
+                    } else {
+                        None
+                    }
+                },
+                Err(RayPropagatorError::RayRelated(RayError::DepthLimitReached)) => None,
+                Err(RayPropagatorError::NoRefraction) => None,
+                _ => panic!("Ungandleable ray propagation error")
+            }
+        } else {
+            None
+        }
+    }
+
+    fn trace_ray_and_calculate_color(&self, ray: &Ray) -> Option<Color> {
+        if let Some(intersection) = self.worldview.get_ray_caster().cast_model_ray(ray) {
+            let diffuse_color = self.calculate_global_color_for_intersection(&intersection);
+            let reflected_color = self.trace_reflective_intersection(&intersection);
+            let refracted_color = self.trace_refractive_intersection(&intersection);
+
+            if diffuse_color.is_some() || reflected_color.is_some() || refracted_color.is_some() {
+                let mut result = Color::zero();
+                result += diffuse_color.unwrap_or(Color::zero());
+                result += reflected_color.unwrap_or(Color::zero());
+                result += refracted_color.unwrap_or(Color::zero());
+                Some(result)
+            } else {
+                None
+            }
+                
+        } else {
+            None
+        }
+    }
+
     pub fn new_calculate_uuid_color_for_pixel(&self, coord: &Point2Int) -> Result<Option<UuidColor>, GlobalIlluminationShaderError> {
-        if let Ok(intersection) = self.worldview.get_pixel_intersection(*coord) {
-            if let Some(model_identifier) = intersection.get_model_identifier() {
-                if let Some(resulting_color) = self.calculate_global_color_for_intersection(&intersection) {
-                    Ok(Some(UuidColor::new(*model_identifier, resulting_color)))
+        if let Ok(ray) = self.worldview.get_view().get_ray_to_screen_coordinate(*coord) {
+            if let Some(intersection) = self.worldview.get_ray_caster().cast_model_ray(&ray) {
+                if let Some(model_identifier) = intersection.get_model_identifier() {
+                    if let Some(resulting_color) = self.trace_ray_and_calculate_color(&ray) {
+                        Ok(Some(UuidColor::new(*model_identifier, resulting_color)))
+                    } else {
+                        Ok(None)
+                    }
                 } else {
-                    Ok(None)
+                    Err(GlobalIlluminationShaderError::NotExistingModelId)
                 }
             } else {
-                Err(GlobalIlluminationShaderError::NotExistingModelId)
+                Ok(None)
             }
         } else {
             Err(GlobalIlluminationShaderError::InvalidCoord)
