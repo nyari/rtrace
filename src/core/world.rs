@@ -71,7 +71,11 @@ impl<IntersectorType: Intersector + Send + Sync,
     }
 
     fn cast_model_ray(&self, ray: &Ray) -> Option<RayIntersection> {
-        self.intersector.get_nearest_intersection(ray)
+        if ray.get_depth_counter() <= self.depth_limit {
+            self.intersector.get_nearest_intersection(ray)
+        } else {
+            None
+        }
     }
 }
 
